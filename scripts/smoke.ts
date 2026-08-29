@@ -43,19 +43,36 @@ if (!process.env.TWITTER_AUTH_INFO_1 || !process.env.TWITTER_PASSWORD) {
 }
 
 const cookiesFile = process.env.TWITTER_COOKIES_FILE || 'cookies.json';
-const haveCookies = existsSync(cookiesFile);
+const authToken = process.env.TWITTER_AUTH_TOKEN;
+// Accept the misspelled variant too, so a typo in .env is not a silent failure.
+const ct0 = process.env.TWITTER_CT0 || process.env.TWTTER_CT0;
+
+const haveEnvCookies = Boolean(authToken && ct0);
+const haveCookieFile = existsSync(cookiesFile);
 
 console.log('\n== Authenticated client ==');
 console.log(
-  haveCookies
-    ? `  (using cookies from ${cookiesFile}, skipping the login flow)`
-    : '  (no cookie file found, running the full login flow)'
+  haveEnvCookies
+    ? '  (using auth_token + ct0 from the environment, skipping the login flow)'
+    : haveCookieFile
+      ? `  (using cookies from ${cookiesFile}, skipping the login flow)`
+      : '  (no cookies found, running the full login flow)'
 );
 
 const client = new Client({ proxy: process.env.TWITTER_PROXY || null });
 
-await check(haveCookies ? 'loadCookies()' : 'login()', async () => {
-  if (haveCookies) {
+const authLabel = haveEnvCookies
+  ? 'setCookies()'
+  : haveCookieFile
+    ? 'loadCookies()'
+    : 'login()';
+
+await check(authLabel, async () => {
+  if (haveEnvCookies) {
+    client.setCookies({ auth_token: authToken!, ct0: ct0! });
+    return `set ${Object.keys(client.getCookies()).length} cookies`;
+  }
+  if (haveCookieFile) {
     await client.loadCookies(cookiesFile);
     return `loaded ${Object.keys(client.getCookies()).length} cookies`;
   }

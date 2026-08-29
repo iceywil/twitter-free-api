@@ -130,6 +130,9 @@ export class Client {
   readonly gql: GQLClient;
   readonly v11: V11Client;
 
+  /** Attempts `getTrends` makes before giving up on an empty response. */
+  static readonly MAX_TREND_ATTEMPTS = 10;
+
   private token = TOKEN;
   private currentUserId: string | null = null;
   private agent: string;
@@ -1551,8 +1554,10 @@ export class Client {
   /**
    * Retrieves trending topics.
    *
-   * @param retry When true, retries once if X returns no trends (which it
-   *   intermittently does).
+   * @param retry When true, keeps re-requesting while X returns no trends,
+   *   which it does intermittently. Upstream recurses without a bound; this
+   *   caps the attempts at {@link Client.MAX_TREND_ATTEMPTS} so a persistently
+   *   empty response cannot spin forever.
    * @example
    * const trends = await client.getTrends('trending');
    */
@@ -1566,28 +1571,29 @@ export class Client {
     if (['news', 'sports', 'entertainment'].includes(normalizedCategory)) {
       normalizedCategory += '_unified';
     }
-
-    const [response] = await this.v11.guide(
-      normalizedCategory,
-      count,
-      additionalRequestParams
-    );
     const entryIdPrefix = normalizedCategory === 'trending' ? 'trends' : 'Guide';
+    const maxAttempts = retry ? Client.MAX_TREND_ATTEMPTS : 1;
 
-    const entries = (findDict(response, 'entries', true)[0] ?? []).filter((entry: any) =>
-      String(entry.entryId).startsWith(entryIdPrefix)
-    );
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const [response] = await this.v11.guide(
+        normalizedCategory,
+        count,
+        additionalRequestParams
+      );
 
-    if (entries.length === 0) {
-      if (!retry) return [];
-      // Trend information is sometimes missing due to a Twitter error; retry once.
-      return this.getTrends(category, count, false, additionalRequestParams);
+      const entries = (findDict(response, 'entries', true)[0] ?? []).filter((entry: any) =>
+        String(entry.entryId).startsWith(entryIdPrefix)
+      );
+
+      if (entries.length === 0) continue;
+
+      const items = entries[entries.length - 1].content?.timelineModule?.items ?? [];
+      return items.map(
+        (item: Record<string, any>) => new Trend(this, item.item.content.trend)
+      );
     }
 
-    const items = entries[entries.length - 1].content.timelineModule.items;
-    return items.map(
-      (item: Record<string, any>) => new Trend(this, item.item.content.trend)
-    );
+    return [];
   }
 
   /** Retrieves the locations that have trend data available. */
