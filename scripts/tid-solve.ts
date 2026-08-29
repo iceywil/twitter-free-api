@@ -84,8 +84,7 @@ await browser.close();
 
 // Persist observations so the formula search has a growing dataset.
 const OBS = 'scripts/.tid-obs.json';
-const prior = existsSync(OBS) ? JSON.parse(readFileSync(OBS, 'utf-8')) : [];
-const merged = [...prior, ...loads.map((l) => ({ keyBytes: l.keyBytes, rowIndex: l.rowIndex, frameTime: l.frameTime }))];
+const merged = [...loads.map((l) => ({ keyBytes: l.keyBytes, frames: l.frames, rowIndex: l.rowIndex, frameTime: l.frameTime }))];
 writeFileSync(OBS, JSON.stringify(merged));
 console.log(`observations saved: ${merged.length} total`);
 

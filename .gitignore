@@ -20,3 +20,4 @@ scripts/.tid-samples.json
 scripts/.frames.json
 scripts/.oracle.json
 scripts/.tid-obs.json
+scripts/.js-*
