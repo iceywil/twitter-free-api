@@ -118,73 +118,62 @@ Dependency substitutions: `httpx` → `axios` + `tough-cookie` (redirects and st
 
 Places where following upstream exactly would break at runtime. Each was found by running both libraries side by side against the live API.
 
-- **The transaction-id header.** See below. As shipped, upstream currently fails on *every* call because of this; the port is only usable at all because it degrades.
+- **Locating `ondemand.s`.** Upstream cannot find it any more and so throws on *every* request; this port resolves it through webpack's chunk manifests. See **The `x-client-transaction-id` header**.
 - **Unavailable quoted/retweeted tweets.** x.com returns `quoted_status_result: {}` for a deleted quote. Upstream indexes straight into it and raises; here `tweet.quote` is simply `null`. Reproducible on real timelines (@jack's, for one).
 - **The two user schemas.** x.com is migrating the user payload from a single `legacy` blob to per-concern objects (`core`, `avatar`, `profile_bio`, `relationship_counts`, `tweet_counts`, ...). Both are live at once: `UserByScreenName` still returns `legacy`, while `Viewer` returns only the new shape. Every `User` field reads `legacy` first and falls back to its new-schema location. Upstream, which assumes `legacy`, throws `KeyError: 'urls'` on the home timeline and on user tweets.
 - **Empty request bodies.** httpx sends `data={}` as an empty form body with `content-type: application/x-www-form-urlencoded`; x.com answers 404. The port sends no body and leaves the content type alone. This is the difference between a working and a non-working guest client.
 - **`userId()` / `user()`.** Upstream reads these from `1.1/account/settings.json`. Every v1.1 account route (`settings.json`, `verify_credentials.json`) now returns 404, so both resolve through the GraphQL `Viewer` operation, keeping the upstream path as a fallback. `user()` is built straight from the `Viewer` payload, which also sidesteps `UserByRestId` — an endpoint some networks see WAF-blocked while the rest of the GraphQL surface stays reachable.
 - **`getTrends()` retries.** Upstream recurses without a bound while x.com returns an empty guide response. The port keeps retrying but caps it at `Client.MAX_TREND_ATTEMPTS` (10).
 
-## Why the gated routes cannot work from Node
-
-`login()` and the search operations are refused by **two independent gates**, established by capturing a real Chromium request and replaying it:
-
-1. **TLS/HTTP2 fingerprinting.** A byte-identical replay of Chromium's own `SearchTimeline` request from Node — same URL, query id, `features`, 589-char cookie header, and a *valid* `x-client-transaction-id` — returns the same empty 404 that our normal request does, while Chromium gets HTTP 200 and 117 KB. Same bytes, different outcome: the refusal happens below HTTP, so no header or cookie work can fix it.
-2. **A valid `x-client-transaction-id`.** Issuing the request from *inside* the page (Chrome's TLS stack, Chrome's cookies) but without that header also returns an empty 404.
-
-Both gates are satisfied only when x.com's own page code issues the request. `scripts/pw-search.ts` demonstrates it: drive Chromium to `/search`, intercept the `SearchTimeline` response, and parse it with this library's ordinary model layer — 20 tweets and a working cursor, no browser-specific parsing code.
-
-That is why the ungated surface (guest client, timelines, user lookups, `Viewer`, DMs, lists, bookmarks) works from plain Node, and the gated surface does not.
-
 ## The `x-client-transaction-id` header
 
-x.com expects requests to carry this header. Generating it means scraping a key-byte index table and a loading-animation SVG out of the logged-out home page — markup X reshapes periodically.
+x.com requires this header on many routes — the login flow, search, and the v1.1
+account endpoints among them. Without it those return an empty `404`; with it
+they return normal responses. This port generates it natively, no browser
+involved.
 
-**As of the last check, upstream's algorithm can no longer be run at all.** The verification key and the four `loading-x-anim` frames are still on the page, but the `ondemand.s` hash that locates the key-byte index table is absent from the HTML and from every bundle (`main`, `vendor`, `en` — 2.3 MB scanned), and the `obfiowerehiring` keyword the hash input depends on appears in none of them. That points to x.com having replaced the scheme rather than moved it, so recovering it means reverse-engineering the current signing code — a separate project from this port, against a moving target.
+The algorithm is twikit's, and it was never wrong. The one part that had broken
+was *locating* `ondemand.s`, the bundle holding the key-byte index table.
+Upstream scans the page for an inline `'ondemand.s':'<hash>'` literal, which
+x.com no longer emits — so upstream throws `Couldn't get KEY_BYTE indices` on
+every single request. The mapping now lives in webpack's two chunk manifests:
+chunk id to chunk name (inside the `r.u` filename builder) and chunk id to
+contenthash. `resolveOndemandFileUrl()` reads both, still trying the legacy
+literal first.
 
-Rather than fail every request, this port emits one warning and continues without the header:
+One further wrinkle: the bare landing page serves a trimmed shell with no
+manifests at all. `ClientTransaction.init()` therefore walks `SHELL_PAGES`
+(`/home`, `/login`, `/i/flow/login`) until it finds a page it can resolve the
+table from — `/login` works unauthenticated, `/home` once cookies are set.
 
-```
-twikit-ts: could not generate the x-client-transaction-id header (...); continuing without it.
-```
+Verified against the live API: `account/settings.json` and `SearchTimeline` both
+return 200 from plain Node, and `searchTweet()` returns results with working
+pagination.
 
-Most requests still work without it (the guest client, timelines, user lookups and `Viewer` all pass). The routes that do require it — `login()` and the search operations — are listed under **Known limitations**. The generator is fully ported and will start working again the moment the page exposes those inputs. To treat the failure as fatal instead:
-
-```ts
-new Client({ requireTransactionId: true });
-```
-
-Pass `silent: true` to suppress the warning.
+If generation ever fails again, the client emits one warning and continues
+without the header rather than failing every request. Pass
+`requireTransactionId: true` to treat it as fatal, or `silent: true` to mute the
+warning.
 
 ## Known limitations
 
-Verified against the live API. None of these are fixable in library code:
-
-- **`login()` is blocked for non-browser clients.** `POST /1.1/onboarding/task.json` returns a Cloudflare *"Sorry, you have been blocked"* page. Reproduced identically from Node, Python/httpx and curl, on both datacenter and residential IPs, with and without browser-like headers, cookies and a transaction-id header — the block happens before the request reaches x.com's API. Use exported browser cookies instead:
+- **`login()` is not implemented against the current flow.** x.com retired
+  `1.1/onboarding/task.json`, which upstream calls; the live flow is a different
+  `/i/jfapi/onboarding/web/*` service with form-encoded payloads. Use exported
+  browser cookies instead:
 
   ```ts
   const client = new Client();
   await client.loadCookies('cookies.json');   // { "auth_token": "...", "ct0": "..." }
   ```
 
-  Read endpoints are unaffected, so this path works normally.
+  Everything else works from cookies, including search.
 
-- **`searchTweet()` / `searchUser()` / `searchList()` return an empty `404`.** Same root cause as `login()`: these routes require client attestation a plain HTTP client cannot produce. What was ruled out, by testing against the live API:
-
-  | Ruled out | Evidence |
-  | --- | --- |
-  | Stale query ID | the live ID (`hyPfJYJ_XAtDYoslQc-Rgg`) 404s exactly like the shipped one, while other operations work on their shipped IDs |
-  | Account gating | search works in the browser on the same account |
-  | Bad `features` / params | identical 404 with the full set, no set, an empty set, and with `fieldToggles` |
-  | Wrong `Referer` | no change |
-  | Missing transaction-id header alone | no change with a placeholder header |
-
-  Every variant returns a byte-identical zero-length 404 while still carrying `x-rate-limit-limit`, so the request reaches x.com and is refused at the route. A parameter error would return JSON.
-
-  `searchTweet()` therefore falls back to the legacy `2/search/adaptive.json` route, which no twikit version uses and which is *not* gated the same way. That route returned real results (5 tweets) exactly once during testing and has not been reproducible since: roughly fifteen further attempts — varying the query, `tweet_search_mode`, `result_filter`, and the parameter set from minimal to full — all returned HTTP 200 with a zero-length body, while the rate-limit counter decremented normally (893 → 881 of 900). So the request is accepted and deliberately answered empty. Treat the fallback as best-effort: it costs one extra request only when GraphQL search has already failed, and yields an empty `Result` rather than throwing. `searchUser()` and `searchList()` have no such fallback and still fail.
-
-- **`getTrends()` can return an empty array.** The `guide.json` endpoint answers with a cursor-only payload indefinitely for some sessions, where the Python library on the same account and cookies gets results. Requests are byte-identical (URL, headers, cookie header), so the cause sits below the HTTP layer and is unresolved.
-
+- **`getTrends()` can return an empty array.** `guide.json` answers with a
+  cursor-only payload for some sessions, where the Python library on the same
+  account and cookies gets results — and this persists now that transaction ids
+  are generated correctly, so the header is not the cause. Requests are
+  byte-identical (URL, headers, cookie header). Unresolved.
 
 ## Configuration
 

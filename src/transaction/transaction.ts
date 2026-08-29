@@ -11,16 +11,17 @@ import { Cubic } from './cubicCurve.js';
 import { interpolate } from './interpolate.js';
 import { convertRotationToMatrix } from './rotation.js';
 import {
+  SHELL_PAGES,
   base64Encode,
   floatToHex,
   handleXMigration,
   isOdd,
   pyRound,
+  resolveOndemandFileUrl,
   type CheerioRoot,
   type TransactionSession,
 } from './utils.js';
 
-const ON_DEMAND_FILE_REGEX = /['|"]{1}ondemand\.s['|"]{1}:\s*['|"]{1}([\w]*)['|"]{1}/m;
 const INDICES_REGEX = /(\(\w{1}\[(\d{1,2})\],\s*16\))+/gm;
 
 /**
@@ -33,15 +34,42 @@ export class ClientTransaction {
   static readonly DEFAULT_KEYWORD = 'obfiowerehiring';
 
   homePageResponse: CheerioRoot | null = null;
+  /** Raw HTML of the shell page, needed to read the chunk manifests. */
+  private pageHtml = '';
   defaultRowIndex: number | null = null;
   defaultKeyBytesIndices: number[] | null = null;
   key: string | null = null;
   keyBytes: number[] | null = null;
   animationKey: string | null = null;
 
+  /**
+   * Loads the shell page and the key-byte index table.
+   *
+   * The bare landing page serves a trimmed shell with no chunk manifests, so
+   * each candidate in {@link SHELL_PAGES} is tried until one yields a page the
+   * index table can be resolved from. `/login` works unauthenticated, `/home`
+   * once cookies are set.
+   */
   async init(session: TransactionSession, headers: Record<string, string>): Promise<void> {
-    const homePageResponse = await handleXMigration(session, headers);
-    this.homePageResponse = this.validateResponse(homePageResponse);
+    let lastError: unknown = new Error('no shell page produced a usable response');
+
+    for (const url of SHELL_PAGES) {
+      try {
+        const { root, html } = await handleXMigration(session, headers, url);
+        if (resolveOndemandFileUrl(html) === null) continue;
+        if (!root("[name='twitter-site-verification']").attr('content')) continue;
+
+        this.homePageResponse = root;
+        this.pageHtml = html;
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (this.homePageResponse === null) {
+      throw lastError instanceof Error ? lastError : new Error(String(lastError));
+    }
 
     const [rowIndex, keyBytesIndices] = await this.getIndices(
       this.homePageResponse,
@@ -63,11 +91,10 @@ export class ClientTransaction {
   ): Promise<[number, number[]]> {
     const keyByteIndices: string[] = [];
     const response = this.validateResponse(homePageResponse ?? this.homePageResponse);
-    const html = response.html();
+    const html = this.pageHtml || response.html();
 
-    const onDemandFile = ON_DEMAND_FILE_REGEX.exec(html);
-    if (onDemandFile) {
-      const onDemandFileUrl = `https://abs.twimg.com/responsive-web/client-web/ondemand.s.${onDemandFile[1]}a.js`;
+    const onDemandFileUrl = resolveOndemandFileUrl(html);
+    if (onDemandFileUrl !== null) {
       const onDemandFileResponse = await session.request('GET', onDemandFileUrl, { headers });
       for (const match of onDemandFileResponse.text.matchAll(INDICES_REGEX)) {
         keyByteIndices.push(match[2]);

@@ -13,6 +13,60 @@ export interface TransactionSession {
   ): Promise<{ text: string }>;
 }
 
+/** Pages that serve the full app shell, which carries the chunk manifests. */
+export const SHELL_PAGES = [
+  'https://x.com/home',
+  'https://x.com/login',
+  'https://x.com/i/flow/login',
+] as const;
+
+/** Returns the first balanced `{...}` literal at or after `from`. */
+function firstObjectLiteral(source: string, from: number): string {
+  const start = source.indexOf('{', from);
+  if (start === -1) return '';
+  let depth = 0;
+  for (let i = start; i < source.length; i += 1) {
+    if (source[i] === '{') depth += 1;
+    else if (source[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  return '';
+}
+
+/**
+ * Locates the `ondemand.s` bundle, which holds the key-byte index table.
+ *
+ * Upstream looks for an inline `'ondemand.s':'<hash>'` literal. x.com no longer
+ * emits that; the mapping now lives in webpack's two chunk manifests — chunk id
+ * to chunk name (inside the `r.u` filename builder) and chunk id to
+ * contenthash. The legacy form is still tried first so older deployments keep
+ * working.
+ */
+export function resolveOndemandFileUrl(html: string): string | null {
+  const base = 'https://abs.twimg.com/responsive-web/client-web/ondemand.s';
+
+  const legacy = /['"]{1}ondemand\.s['"]{1}:\s*['"]{1}([\w]*)['"]{1}/.exec(html);
+  if (legacy) return `${base}.${legacy[1]}a.js`;
+
+  const builderIndex = html.search(/\.u\s*=\s*\w*\s*=>/);
+  if (builderIndex === -1) return null;
+
+  const nameMap = firstObjectLiteral(html, builderIndex);
+  const chunkId = [...nameMap.matchAll(/(\d{3,7}):"([^"]+)"/g)].find(
+    (m) => m[2] === 'ondemand.s'
+  )?.[1];
+  if (chunkId === undefined) return null;
+
+  const hash = [...html.matchAll(/(\d{3,7}):"([0-9a-f]{16})"/g)].find(
+    (m) => m[1] === chunkId
+  )?.[2];
+  if (hash === undefined) return null;
+
+  return `${base}.${hash}a.js`;
+}
+
 const MIGRATION_REDIRECTION_REGEX =
   /(http(?:s)?:\/\/(?:www\.)?(twitter|x){1}\.com(\/x)?\/migrate([/?])?tok=[a-zA-Z0-9%\-_]+)+/;
 
@@ -22,9 +76,10 @@ const MIGRATION_REDIRECTION_REGEX =
  */
 export async function handleXMigration(
   session: TransactionSession,
-  headers: Record<string, string>
-): Promise<CheerioRoot> {
-  let response = await session.request('GET', 'https://x.com', { headers });
+  headers: Record<string, string>,
+  url = 'https://x.com'
+): Promise<{ root: CheerioRoot; html: string }> {
+  let response = await session.request('GET', url, { headers });
   let homePage = cheerio.load(response.text);
 
   const migrationUrl = homePage("meta[http-equiv='refresh']");
@@ -54,7 +109,7 @@ export async function handleXMigration(
     homePage = cheerio.load(response.text);
   }
 
-  return homePage;
+  return { root: homePage, html: response.text };
 }
 
 /**
