@@ -13,3 +13,10 @@ scripts/dbg*.ts
 
 # captured browser request (contains session secrets)
 scripts/.capture.json
+scripts/.intercept.jsonl
+scripts/.storage.json
+scripts/.bodies/
+scripts/.tid-samples.json
+scripts/.frames.json
+scripts/.oracle.json
+scripts/.tid-obs.json
