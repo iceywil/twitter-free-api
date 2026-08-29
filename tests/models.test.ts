@@ -4,6 +4,7 @@ import type { GuestClient } from '../src/guest/client.js';
 import { Tweet, tweetFromData } from '../src/models/tweet.js';
 import { User } from '../src/models/user.js';
 import { buildTweetData, buildUserData } from '../src/utils.js';
+import { Trend, collectTimelineTrends } from '../src/models/trend.js';
 import type { Client } from '../src/client/client.js';
 
 const client = {} as Client;
@@ -340,5 +341,75 @@ describe('adaptive search payload handling', () => {
       .map((e: any) => e.content?.item?.content?.tweet?.id)
       .filter(Boolean);
     expect(ids).toEqual(['111', '222']);
+  });
+});
+
+describe('Trend payload shapes', () => {
+  // guide.json returns camelCase; the GraphQL Explore endpoints return a
+  // snake_case TimelineTrend. Both must map.
+  it('maps the v1.1 guide.json shape', () => {
+    const trend = new Trend(client, {
+      name: 'Example',
+      trendMetadata: { metaDescription: '12.3K posts', domainContext: 'Trending in Tech' },
+      groupedTrends: [{ name: 'sub1' }, { name: 'sub2' }],
+    });
+    expect(trend.name).toBe('Example');
+    expect(trend.tweetsCount).toBe('12.3K posts');
+    expect(trend.domainContext).toBe('Trending in Tech');
+    expect(trend.groupedTrends).toEqual(['sub1', 'sub2']);
+  });
+
+  it('maps the GraphQL TimelineTrend shape', () => {
+    const trend = new Trend(client, {
+      __typename: 'TimelineTrend',
+      name: 'Népal',
+      trend_metadata: { domain_context: 'Technology · Trending' },
+    });
+    expect(trend.name).toBe('Népal');
+    expect(trend.domainContext).toBe('Technology · Trending');
+    expect(trend.tweetsCount).toBeNull();
+    expect(trend.groupedTrends).toEqual([]);
+  });
+});
+
+describe('collectTimelineTrends', () => {
+  const nested = {
+    data: {
+      explore_sidebar: {
+        timeline: {
+          instructions: [
+            { type: 'TimelineClearCache' },
+            {
+              entries: [
+                {
+                  content: {
+                    items: [
+                      { item: { itemContent: { __typename: 'TimelineTrend', name: 'A', trend_metadata: {} } } },
+                      { item: { itemContent: { __typename: 'TimelineTrend', name: 'B', trend_metadata: {} } } },
+                      { item: { itemContent: { __typename: 'TimelineUser', name: 'not a trend' } } },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  it('finds trends at any depth and ignores other item types', () => {
+    const found = collectTimelineTrends(nested);
+    expect(found.map((t) => t.name)).toEqual(['A', 'B']);
+  });
+
+  it('de-duplicates by name', () => {
+    const dup = { a: nested, b: nested };
+    expect(collectTimelineTrends(dup).map((t) => t.name)).toEqual(['A', 'B']);
+  });
+
+  it('returns an empty array when there are none', () => {
+    expect(collectTimelineTrends({ data: {} })).toEqual([]);
+    expect(collectTimelineTrends(null)).toEqual([]);
   });
 });

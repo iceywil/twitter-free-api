@@ -42,7 +42,13 @@ import {
   type Payload,
   type StreamEvent,
 } from '../models/streaming.js';
-import { Location, PlaceTrend, Trend, type PlaceTrends } from '../models/trend.js';
+import {
+  Location,
+  PlaceTrend,
+  Trend,
+  collectTimelineTrends,
+  type PlaceTrends,
+} from '../models/trend.js';
 import {
   CommunityNote,
   Poll,
@@ -1702,11 +1708,39 @@ export class Client {
       if (entries.length === 0) continue;
 
       const items = entries[entries.length - 1].content?.timelineModule?.items ?? [];
-      return items.map(
+      const trends = items.map(
         (item: Record<string, any>) => new Trend(this, item.item.content.trend)
       );
+      if (trends.length > 0) return trends;
+      break;
     }
 
+    // v1.1 guide.json now answers with a cursor-only payload for many sessions,
+    // where the web client reads trends from the GraphQL Explore endpoints
+    // instead. Fall back to those.
+    return this.getTrendsFromExplore(count);
+  }
+
+  /**
+   * Trends via the GraphQL Explore endpoints, which is what the web client
+   * actually uses. Tries the Explore page first (it carries more trend
+   * modules) and falls back to the sidebar.
+   */
+  private async getTrendsFromExplore(count: number): Promise<Trend[]> {
+    for (const fetch of [
+      () => this.gql.explorePage(null),
+      () => this.gql.exploreSidebar(),
+    ]) {
+      try {
+        const [response] = await fetch();
+        const raw = collectTimelineTrends(response);
+        if (raw.length > 0) {
+          return raw.slice(0, count).map((data) => new Trend(this, data));
+        }
+      } catch {
+        // Try the next source.
+      }
+    }
     return [];
   }
 

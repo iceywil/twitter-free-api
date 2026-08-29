@@ -123,7 +123,7 @@ Places where following upstream exactly would break at runtime. Each was found b
 - **The two user schemas.** x.com is migrating the user payload from a single `legacy` blob to per-concern objects (`core`, `avatar`, `profile_bio`, `relationship_counts`, `tweet_counts`, ...). Both are live at once: `UserByScreenName` still returns `legacy`, while `Viewer` returns only the new shape. Every `User` field reads `legacy` first and falls back to its new-schema location. Upstream, which assumes `legacy`, throws `KeyError: 'urls'` on the home timeline and on user tweets.
 - **Empty request bodies.** httpx sends `data={}` as an empty form body with `content-type: application/x-www-form-urlencoded`; x.com answers 404. The port sends no body and leaves the content type alone. This is the difference between a working and a non-working guest client.
 - **`userId()` / `user()`.** Upstream reads these from `1.1/account/settings.json`. Every v1.1 account route (`settings.json`, `verify_credentials.json`) now returns 404, so both resolve through the GraphQL `Viewer` operation, keeping the upstream path as a fallback. `user()` is built straight from the `Viewer` payload, which also sidesteps `UserByRestId` — an endpoint some networks see WAF-blocked while the rest of the GraphQL surface stays reachable.
-- **`getTrends()` retries.** Upstream recurses without a bound while x.com returns an empty guide response. The port keeps retrying but caps it at `Client.MAX_TREND_ATTEMPTS` (10).
+- **`getTrends()` sources and retries.** Upstream recurses without a bound while x.com returns an empty guide response; the port caps that at `Client.MAX_TREND_ATTEMPTS` (10) and then falls back to the GraphQL Explore endpoints the web client uses, since `guide.json` no longer returns trends at all. `Trend` accepts both payload shapes — camelCase from `guide.json`, snake_case `TimelineTrend` from Explore.
 
 ## The `x-client-transaction-id` header
 
@@ -169,11 +169,16 @@ warning.
 
   Everything else works from cookies, including search.
 
-- **`getTrends()` can return an empty array.** `guide.json` answers with a
-  cursor-only payload for some sessions, where the Python library on the same
-  account and cookies gets results — and this persists now that transaction ids
-  are generated correctly, so the header is not the cause. Requests are
-  byte-identical (URL, headers, cookie header). Unresolved.
+- **`getTrends()` ignores `category` when it falls back.** v1.1 `guide.json`,
+  which upstream uses, now answers with a cursor-only payload — verified
+  identically from this port and from the Python library (0 of 15 attempts
+  returned trends on the same account and cookies), so it is an endpoint
+  change, not a client bug. The web client reads trends from the GraphQL
+  `ExplorePage` / `ExploreSidebar` endpoints instead, and `getTrends()` falls
+  back to those. Those endpoints take no category argument, so `trending`,
+  `news`, `sports` and `entertainment` all return the same list once the
+  fallback is in use. The `guide.json` path is still tried first, so category
+  filtering returns if x.com starts serving it again.
 
 ## Configuration
 
@@ -228,7 +233,7 @@ npx tsx examples/basic.ts
 ## Testing
 
 ```bash
-npm test                    # 70 unit tests, no network
+npm test                    # 75 unit tests, no network
 npx tsx scripts/smoke.ts    # live check; runs the guest half with no credentials
 ```
 

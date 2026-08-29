@@ -77,4 +77,8 @@ export const Endpoint = {
   // (settings.json, verify_credentials.json) now returns 404, leaving this
   // as the only way to resolve the authenticated user's own id.
   VIEWER: url('5XShkXk2oO2J7SYmTu6pvw/Viewer'),
+  // Trend sources actually used by the web client; v1.1 guide.json no
+  // longer returns trends. Not present upstream.
+  EXPLORE_SIDEBAR: url('qjhLfJKwuRiKMQ6zBgkfYQ/ExploreSidebar'),
+  EXPLORE_PAGE: url('jo4rJIWiO5pQlMk6FYphZQ/ExplorePage'),
 } as const;

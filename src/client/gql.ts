@@ -3,6 +3,7 @@
 import {
   BOOKMARK_FOLDER_TIMELINE_FEATURES,
   COMMUNITY_NOTE_FEATURES,
+  EXPLORE_FEATURES,
   COMMUNITY_TWEETS_FEATURES,
   FEATURES,
   JOIN_COMMUNITY_FEATURES,
@@ -316,6 +317,16 @@ export class GQLClient {
       source_tweet_id: tweetId,
       dark_request: false,
     });
+  }
+
+  /** Trends shown in the Explore sidebar. */
+  exploreSidebar() {
+    return this.gqlGet(Endpoint.EXPLORE_SIDEBAR, {}, EXPLORE_FEATURES);
+  }
+
+  /** The Explore page, which also carries trend modules. */
+  explorePage(cursor: string | null = null) {
+    return this.gqlGet(Endpoint.EXPLORE_PAGE, { cursor: cursor ?? '' }, EXPLORE_FEATURES);
   }
 
   // -- bookmarks -------------------------------------------------------------
