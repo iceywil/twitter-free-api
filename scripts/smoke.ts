@@ -7,6 +7,7 @@
  *   npx tsx scripts/smoke.ts
  */
 
+import { existsSync } from 'node:fs';
 import 'dotenv/config';
 import { Client, GuestClient } from '../src/index.js';
 
@@ -41,16 +42,29 @@ if (!process.env.TWITTER_AUTH_INFO_1 || !process.env.TWITTER_PASSWORD) {
   process.exit(failures > 0 ? 1 : 0);
 }
 
+const cookiesFile = process.env.TWITTER_COOKIES_FILE || 'cookies.json';
+const haveCookies = existsSync(cookiesFile);
+
 console.log('\n== Authenticated client ==');
+console.log(
+  haveCookies
+    ? `  (using cookies from ${cookiesFile}, skipping the login flow)`
+    : '  (no cookie file found, running the full login flow)'
+);
+
 const client = new Client({ proxy: process.env.TWITTER_PROXY || null });
 
-await check('login()', async () => {
+await check(haveCookies ? 'loadCookies()' : 'login()', async () => {
+  if (haveCookies) {
+    await client.loadCookies(cookiesFile);
+    return `loaded ${Object.keys(client.getCookies()).length} cookies`;
+  }
   await client.login({
     authInfo1: process.env.TWITTER_AUTH_INFO_1!,
     authInfo2: process.env.TWITTER_AUTH_INFO_2,
     password: process.env.TWITTER_PASSWORD!,
     totpSecret: process.env.TWITTER_TOTP_SECRET || undefined,
-    cookiesFile: process.env.TWITTER_COOKIES_FILE || 'cookies.json',
+    cookiesFile,
   });
   return 'ok';
 });
