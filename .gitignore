@@ -10,3 +10,6 @@ coverage/
 
 # scratch debug scripts (safe to delete)
 scripts/dbg*.ts
+
+# captured browser request (contains session secrets)
+scripts/.capture.json

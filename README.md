@@ -125,6 +125,17 @@ Places where following upstream exactly would break at runtime. Each was found b
 - **`userId()` / `user()`.** Upstream reads these from `1.1/account/settings.json`. Every v1.1 account route (`settings.json`, `verify_credentials.json`) now returns 404, so both resolve through the GraphQL `Viewer` operation, keeping the upstream path as a fallback. `user()` is built straight from the `Viewer` payload, which also sidesteps `UserByRestId` — an endpoint some networks see WAF-blocked while the rest of the GraphQL surface stays reachable.
 - **`getTrends()` retries.** Upstream recurses without a bound while x.com returns an empty guide response. The port keeps retrying but caps it at `Client.MAX_TREND_ATTEMPTS` (10).
 
+## Why the gated routes cannot work from Node
+
+`login()` and the search operations are refused by **two independent gates**, established by capturing a real Chromium request and replaying it:
+
+1. **TLS/HTTP2 fingerprinting.** A byte-identical replay of Chromium's own `SearchTimeline` request from Node — same URL, query id, `features`, 589-char cookie header, and a *valid* `x-client-transaction-id` — returns the same empty 404 that our normal request does, while Chromium gets HTTP 200 and 117 KB. Same bytes, different outcome: the refusal happens below HTTP, so no header or cookie work can fix it.
+2. **A valid `x-client-transaction-id`.** Issuing the request from *inside* the page (Chrome's TLS stack, Chrome's cookies) but without that header also returns an empty 404.
+
+Both gates are satisfied only when x.com's own page code issues the request. `scripts/pw-search.ts` demonstrates it: drive Chromium to `/search`, intercept the `SearchTimeline` response, and parse it with this library's ordinary model layer — 20 tweets and a working cursor, no browser-specific parsing code.
+
+That is why the ungated surface (guest client, timelines, user lookups, `Viewer`, DMs, lists, bookmarks) works from plain Node, and the gated surface does not.
+
 ## The `x-client-transaction-id` header
 
 x.com expects requests to carry this header. Generating it means scraping a key-byte index table and a loading-animation SVG out of the logged-out home page — markup X reshapes periodically.
