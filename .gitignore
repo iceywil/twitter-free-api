@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+!.env.example
+cookies.json
+*.tsbuildinfo
+coverage/
+
+# scratch debug scripts (safe to delete)
+scripts/dbg*.ts

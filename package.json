@@ -1,0 +1,61 @@
+{
+  "name": "twikit-ts",
+  "version": "0.1.0",
+  "description": "TypeScript port of twikit — a Twitter/X API wrapper with no API key required.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "form-data": "^4.0.1",
+    "http-cookie-agent": "^6.0.5",
+    "https-proxy-agent": "^7.0.6",
+    "otpauth": "^9.3.6",
+    "socks-proxy-agent": "^8.0.5",
+    "tough-cookie": "^5.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "dotenv": "^17.4.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.23.12",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "keywords": [
+    "twitter",
+    "x",
+    "api",
+    "scraper",
+    "twikit",
+    "typescript"
+  ]
+}
