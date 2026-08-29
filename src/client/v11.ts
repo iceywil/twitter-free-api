@@ -406,6 +406,33 @@ export class V11Client {
     return this.base.post(V11Endpoint.DM_NEW, { json: data, headers: this.base.baseHeaders });
   }
 
+  /**
+   * Legacy adaptive search. Returns v1.1-shaped `globalObjects` rather than a
+   * GraphQL timeline.
+   */
+  searchAdaptive(
+    query: string,
+    count: number,
+    cursor: string | null,
+    product: 'Top' | 'Latest' | 'Media'
+  ) {
+    const params: Record<string, unknown> = {
+      q: query,
+      count,
+      query_source: 'typed_query',
+      pc: 1,
+      spelling_corrections: 1,
+    };
+    if (product === 'Latest') params.tweet_search_mode = 'live';
+    if (product === 'Media') params.result_filter = 'media';
+    if (cursor != null) params.cursor = cursor;
+
+    return this.base.get(V11Endpoint.SEARCH_ADAPTIVE, {
+      params,
+      headers: this.base.baseHeaders,
+    });
+  }
+
   dmInbox() {
     return this.base.get(V11Endpoint.DM_INBOX, { headers: this.base.baseHeaders });
   }

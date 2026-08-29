@@ -3,6 +3,7 @@ import { GuestTweet } from '../src/guest/tweet.js';
 import type { GuestClient } from '../src/guest/client.js';
 import { Tweet, tweetFromData } from '../src/models/tweet.js';
 import { User } from '../src/models/user.js';
+import { buildTweetData, buildUserData } from '../src/utils.js';
 import type { Client } from '../src/client/client.js';
 
 const client = {} as Client;
@@ -260,5 +261,84 @@ describe('User schema compatibility', () => {
     expect(user.protected).toBe(false);
     expect(user.pinnedTweetIds).toEqual([]);
     expect(user.descriptionUrls).toEqual([]);
+  });
+});
+
+describe('adaptive search payload handling', () => {
+  // The legacy 2/search/adaptive.json route returns v1.1-shaped globalObjects
+  // instead of a GraphQL timeline. Verify the rebuild helpers cover that shape.
+  const adaptive = {
+    globalObjects: {
+      tweets: {
+        '111': {
+          id: '111',
+          user_id_str: '9',
+          full_text: 'first result',
+          favorite_count: 2,
+          entities: { hashtags: [] },
+        },
+        '222': {
+          id: '222',
+          user_id_str: '9',
+          text: 'second result',
+          entities: { hashtags: [] },
+        },
+      },
+      users: { '9': { id: '9', screen_name: 'alice', name: 'Alice', followers_count: 3 } },
+    },
+    timeline: {
+      instructions: [
+        {
+          addEntries: {
+            entries: [
+              { entryId: 'sq-I-t-111', content: { item: { content: { tweet: { id: '111' } } } } },
+              { entryId: 'sq-I-t-222', content: { item: { content: { tweet: { id: '222' } } } } },
+              {
+                entryId: 'sq-cursor-bottom',
+                content: { operation: { cursor: { value: 'NEXT', cursorType: 'Bottom' } } },
+              },
+              {
+                entryId: 'sq-cursor-top',
+                content: { operation: { cursor: { value: 'PREV', cursorType: 'Top' } } },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  };
+
+  it('rebuilds tweets from the v1.1 globalObjects shape', () => {
+    const data = adaptive.globalObjects.tweets['111'];
+    const built = buildTweetData(data);
+    const user = new User(client, buildUserData(adaptive.globalObjects.users['9']));
+    const tweet = new Tweet(client, built, user);
+
+    expect(tweet.id).toBe('111');
+    expect(tweet.text).toBe('first result');
+    expect(tweet.favoriteCount).toBe(2);
+    expect(tweet.user?.screenName).toBe('alice');
+  });
+
+  it('falls back to `text` when `full_text` is absent', () => {
+    const tweet = new Tweet(client, buildTweetData(adaptive.globalObjects.tweets['222']));
+    expect(tweet.text).toBe('second result');
+  });
+
+  it('exposes both cursors from the entry list', () => {
+    const entries = adaptive.timeline.instructions.flatMap((i: any) => i.addEntries.entries);
+    const cursors = entries
+      .map((e: any) => e.content?.operation?.cursor)
+      .filter(Boolean) as { value: string; cursorType: string }[];
+    expect(cursors.find((c) => c.cursorType === 'Bottom')?.value).toBe('NEXT');
+    expect(cursors.find((c) => c.cursorType === 'Top')?.value).toBe('PREV');
+  });
+
+  it('preserves entry ordering', () => {
+    const entries = adaptive.timeline.instructions.flatMap((i: any) => i.addEntries.entries);
+    const ids = entries
+      .map((e: any) => e.content?.item?.content?.tweet?.id)
+      .filter(Boolean);
+    expect(ids).toEqual(['111', '222']);
   });
 });

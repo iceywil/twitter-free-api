@@ -39,4 +39,7 @@ export const V11Endpoint = {
   LIVE_PIPELINE_EVENTS: `https://api.${DOMAIN}/live_pipeline/events`,
   LIVE_PIPELINE_UPDATE_SUBSCRIPTIONS: `https://api.${DOMAIN}/1.1/live_pipeline/update_subscriptions`,
   USER_STATE: `https://api.${DOMAIN}/help-center/forms/api/prod/user_state.json`,
+  // Not present in any twikit version. The legacy adaptive search route,
+  // used as a best-effort fallback when GraphQL SearchTimeline is refused.
+  SEARCH_ADAPTIVE: `https://${DOMAIN}/i/api/2/search/adaptive.json`,
 } as const;

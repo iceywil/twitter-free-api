@@ -91,6 +91,9 @@ await check('user()', async () => {
 });
 await check('searchTweet()', async () => {
   const tweets = await client.searchTweet('typescript', 'Latest', 5);
+  // An empty result is not a pass: x.com answers the search routes with an
+  // empty payload for clients it will not serve, without raising.
+  if (tweets.length === 0) throw new Error('returned 0 results (empty payload, not an error)');
   return `${tweets.length} results`;
 });
 await check('getTimeline()', async () => `${(await client.getTimeline(5)).length} tweets`);
@@ -100,10 +103,12 @@ await check('getUserTweets()', async () => {
 });
 await check('getTrends()', async () => {
   const trends = await client.getTrends('trending', 5);
-  return trends.map((t) => t.name).slice(0, 3).join(', ');
+  if (trends.length === 0) throw new Error('returned 0 trends (empty guide response)');
+  return `${trends.length}: ` + trends.map((t) => t.name).slice(0, 3).join(', ');
 });
 await check('pagination (Result.next)', async () => {
   const tweets = await client.searchTweet('news', 'Latest', 5);
+  if (tweets.length === 0) throw new Error('search returned 0 results, cannot test pagination');
   return `${(await tweets.next()).length} on page 2`;
 });
 

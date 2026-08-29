@@ -170,7 +170,10 @@ Verified against the live API. None of these are fixable in library code:
 
   Every variant returns a byte-identical zero-length 404 while still carrying `x-rate-limit-limit`, so the request reaches x.com and is refused at the route. A parameter error would return JSON.
 
-- **`getTrends()` can return an empty array.** The `guide.json` endpoint sometimes yields a cursor-only response indefinitely for a given session, where the Python library on the same account and cookies gets results. Requests are byte-identical (URL, headers, cookie header), so the cause is below the HTTP layer and is unresolved.
+  `searchTweet()` therefore falls back to the legacy `2/search/adaptive.json` route, which no twikit version uses and which is *not* gated the same way. That route returned real results once during testing, then began answering HTTP 200 with a zero-length body while reporting 893/900 rate limit remaining — so treat it as best-effort: it yields an empty `Result` rather than throwing. `searchUser()` and `searchList()` have no such fallback and still fail.
+
+- **`getTrends()` can return an empty array.** The `guide.json` endpoint answers with a cursor-only payload indefinitely for some sessions, where the Python library on the same account and cookies gets results. Requests are byte-identical (URL, headers, cookie header), so the cause sits below the HTTP layer and is unresolved.
+
 
 ## Configuration
 
@@ -225,7 +228,7 @@ npx tsx examples/basic.ts
 ## Testing
 
 ```bash
-npm test                    # 66 unit tests, no network
+npm test                    # 70 unit tests, no network
 npx tsx scripts/smoke.ts    # live check; runs the guest half with no credentials
 ```
 

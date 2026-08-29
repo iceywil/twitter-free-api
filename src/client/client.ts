@@ -613,7 +613,17 @@ export class Client {
     cursor: string | null = null
   ): Promise<Result<Tweet>> {
     const normalizedProduct = capitalize(product) as 'Top' | 'Latest' | 'Media';
-    const [response] = await this.gql.searchTimeline(query, normalizedProduct, count, cursor);
+
+    let response: Record<string, any>;
+    try {
+      [response] = await this.gql.searchTimeline(query, normalizedProduct, count, cursor);
+    } catch (error) {
+      // x.com refuses SearchTimeline for clients that cannot produce a valid
+      // x-client-transaction-id, answering with an empty 404. The legacy
+      // adaptive route is not gated the same way, so fall back to it.
+      if (!(error instanceof NotFound)) throw error;
+      return this.searchTweetAdaptive(query, normalizedProduct, count, cursor);
+    }
 
     const instructionsFound = findDict(response, 'instructions', true);
     if (instructionsFound.length === 0) return new Result<Tweet>([]);
@@ -665,6 +675,76 @@ export class Client {
       () => this.searchTweet(query, normalizedProduct, count, nextCursor),
       nextCursor,
       () => this.searchTweet(query, normalizedProduct, count, previousCursor),
+      previousCursor
+    );
+  }
+
+  /**
+   * Best-effort search via the legacy `2/search/adaptive.json` route, used when
+   * GraphQL `SearchTimeline` is refused.
+   *
+   * No twikit version uses this endpoint. It returns v1.1-shaped
+   * `globalObjects` instead of a GraphQL timeline, so tweets are rebuilt with
+   * {@link buildTweetData} / {@link buildUserData}. x.com sometimes answers it
+   * with an empty body even at HTTP 200, in which case this yields an empty
+   * result rather than throwing.
+   */
+  private async searchTweetAdaptive(
+    query: string,
+    product: 'Top' | 'Latest' | 'Media',
+    count: number,
+    cursor: string | null
+  ): Promise<Result<Tweet>> {
+    const [response] = await this.v11.searchAdaptive(query, count, cursor, product);
+
+    const globalObjects = response?.globalObjects;
+    if (!globalObjects) return Result.empty<Tweet>();
+
+    const rawTweets: Record<string, any> = globalObjects.tweets ?? {};
+    const rawUsers: Record<string, any> = globalObjects.users ?? {};
+
+    const users: Record<string, User> = {};
+    for (const [id, data] of Object.entries(rawUsers)) {
+      users[id] = new User(this, buildUserData(data));
+    }
+
+    const entries: Record<string, any>[] = (response.timeline?.instructions ?? []).flatMap(
+      (instruction: Record<string, any>) => instruction.addEntries?.entries ?? []
+    );
+
+    let nextCursor: string | null = null;
+    let previousCursor: string | null = null;
+    const results: Tweet[] = [];
+    const seen = new Set<string>();
+
+    const push = (tweetId: string): void => {
+      const data = rawTweets[tweetId];
+      if (data === undefined || seen.has(tweetId)) return;
+      seen.add(tweetId);
+      results.push(new Tweet(this, buildTweetData(data), users[data.user_id_str] ?? null));
+    };
+
+    for (const entry of entries) {
+      const operationCursor = entry.content?.operation?.cursor;
+      if (operationCursor) {
+        if (operationCursor.cursorType === 'Bottom') nextCursor = operationCursor.value;
+        if (operationCursor.cursorType === 'Top') previousCursor = operationCursor.value;
+        continue;
+      }
+      const tweetId = entry.content?.item?.content?.tweet?.id;
+      if (typeof tweetId === 'string') push(tweetId);
+    }
+
+    // Entries can be absent even when globalObjects carries results.
+    if (results.length === 0) {
+      for (const tweetId of Object.keys(rawTweets)) push(tweetId);
+    }
+
+    return new Result<Tweet>(
+      results,
+      () => this.searchTweetAdaptive(query, product, count, nextCursor),
+      nextCursor,
+      () => this.searchTweetAdaptive(query, product, count, previousCursor),
       previousCursor
     );
   }
