@@ -159,6 +159,14 @@ export class GQLClient {
     return this.gqlGet(Endpoint.USER_BY_SCREEN_NAME, variables, USER_FEATURES, null, params);
   }
 
+  /**
+   * The authenticated user. Used to resolve our own id now that the v1.1
+   * account endpoints are gone.
+   */
+  viewer() {
+    return this.gqlGet(Endpoint.VIEWER, { withCommunitiesMemberships: true });
+  }
+
   userByRestId(userId: string) {
     const variables: Variables = { userId, withSafetyModeUserFields: true };
     return this.gqlGet(Endpoint.USER_BY_REST_ID, variables, USER_FEATURES);

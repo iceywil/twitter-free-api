@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GuestTweet } from '../src/guest/tweet.js';
 import type { GuestClient } from '../src/guest/client.js';
 import { Tweet, tweetFromData } from '../src/models/tweet.js';
+import { User } from '../src/models/user.js';
 import type { Client } from '../src/client/client.js';
 
 const client = {} as Client;
@@ -161,5 +162,103 @@ describe('GuestTweet', () => {
     );
     expect(tweet.quote?.id).toBe('456');
     expect(tweet.quote?.user?.screenName).toBe('bob');
+  });
+});
+
+describe('User schema compatibility', () => {
+  // x.com serves two user shapes concurrently: UserByScreenName returns a
+  // `legacy` blob, Viewer returns per-concern objects. Both must map.
+  const legacyPayload = {
+    rest_id: '12',
+    is_blue_verified: true,
+    legacy: {
+      created_at: 'Tue Mar 21 20:50:14 +0000 2006',
+      name: 'jack',
+      screen_name: 'jack',
+      profile_image_url_https: 'https://example.com/a.jpg',
+      profile_banner_url: 'https://example.com/b.jpg',
+      location: 'earth',
+      description: 'bio',
+      entities: { description: { urls: [{ url: 'https://t.co/x' }] } },
+      pinned_tweet_ids_str: ['1'],
+      verified: false,
+      followers_count: 100,
+      friends_count: 5,
+      favourites_count: 7,
+      media_count: 2,
+      statuses_count: 9,
+      can_dm: true,
+      can_media_tag: false,
+      protected: true,
+    },
+  };
+
+  const newPayload = {
+    rest_id: '2092621837301596161',
+    is_blue_verified: false,
+    core: { created_at: 'Wed Aug 26 14:35:39 +0000 2026', name: 'bozo', screen_name: 'bozo1of1' },
+    avatar: { image_url: 'https://example.com/new-a.jpg' },
+    banner: { image_url: 'https://example.com/new-b.jpg' },
+    profile_bio: { description: 'new bio', entities: { description: { urls: [] } } },
+    relationship_counts: { followers: 3, following: 41 },
+    action_counts: { favorites_count: 4 },
+    tweet_counts: { tweets: 11, media_tweets: 6 },
+    location: { location: 'somewhere' },
+    verification: { verified: true },
+    privacy: { protected: false },
+    website: { url: 'https://example.com' },
+    dm_permissions: { can_dm: false },
+    media_permissions: { can_media_tag: true },
+  };
+
+  it('maps the legacy shape', () => {
+    const user = new User(client, legacyPayload);
+    expect(user.screenName).toBe('jack');
+    expect(user.followersCount).toBe(100);
+    expect(user.followingCount).toBe(5);
+    expect(user.favouritesCount).toBe(7);
+    expect(user.statusesCount).toBe(9);
+    expect(user.mediaCount).toBe(2);
+    expect(user.description).toBe('bio');
+    expect(user.location).toBe('earth');
+    expect(user.protected).toBe(true);
+    expect(user.canDm).toBe(true);
+    expect(user.descriptionUrls).toHaveLength(1);
+  });
+
+  it('maps the new per-concern shape', () => {
+    const user = new User(client, newPayload);
+    expect(user.id).toBe('2092621837301596161');
+    expect(user.screenName).toBe('bozo1of1');
+    expect(user.name).toBe('bozo');
+    expect(user.createdAtDate.getUTCFullYear()).toBe(2026);
+    expect(user.profileImageUrl).toBe('https://example.com/new-a.jpg');
+    expect(user.profileBannerUrl).toBe('https://example.com/new-b.jpg');
+    expect(user.url).toBe('https://example.com');
+    expect(user.description).toBe('new bio');
+    expect(user.location).toBe('somewhere');
+    expect(user.followersCount).toBe(3);
+    expect(user.followingCount).toBe(41);
+    expect(user.favouritesCount).toBe(4);
+    expect(user.statusesCount).toBe(11);
+    expect(user.mediaCount).toBe(6);
+    expect(user.verified).toBe(true);
+    expect(user.protected).toBe(false);
+    expect(user.canDm).toBe(false);
+    expect(user.canMediaTag).toBe(true);
+  });
+
+  it('prefers legacy when both shapes are present', () => {
+    const user = new User(client, { ...newPayload, ...legacyPayload });
+    expect(user.screenName).toBe('jack');
+    expect(user.followersCount).toBe(100);
+  });
+
+  it('does not throw on a sparse payload', () => {
+    const user = new User(client, { rest_id: '1' });
+    expect(user.id).toBe('1');
+    expect(user.protected).toBe(false);
+    expect(user.pinnedTweetIds).toEqual([]);
+    expect(user.descriptionUrls).toEqual([]);
   });
 });

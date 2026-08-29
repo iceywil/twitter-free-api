@@ -547,17 +547,51 @@ export class Client {
     this.actAs = userId;
   }
 
-  /** The authenticated user's ID. */
+  /**
+   * The authenticated user's ID.
+   *
+   * Upstream reads this from `1.1/account/settings.json`, which now returns 404
+   * for every v1.1 account route, so the GraphQL `Viewer` operation is tried
+   * first; the upstream path remains as a fallback in case it comes back.
+   */
   async userId(): Promise<string> {
     if (this.currentUserId !== null) return this.currentUserId;
-    const [response] = await this.v11.settings();
-    const screenName = response.screen_name;
+
+    try {
+      const [response] = await this.gql.viewer();
+      const restId = response?.data?.viewer?.user_results?.result?.rest_id;
+      if (typeof restId === 'string' && restId !== '') {
+        this.currentUserId = restId;
+        return restId;
+      }
+    } catch {
+      // Fall through to the upstream route below.
+    }
+
+    const [settings] = await this.v11.settings();
+    const screenName = settings.screen_name;
     this.currentUserId = (await this.getUserByScreenName(screenName)).id;
     return this.currentUserId;
   }
 
-  /** The authenticated user. */
+  /**
+   * The authenticated user.
+   *
+   * Built from the `Viewer` payload, which already carries the account. That
+   * also sidesteps `UserByRestId`, which some networks see WAF-blocked while
+   * the rest of the GraphQL surface stays reachable.
+   */
   async user(): Promise<User> {
+    try {
+      const [response] = await this.gql.viewer();
+      const result = response?.data?.viewer?.user_results?.result;
+      if (result?.rest_id) {
+        this.currentUserId = result.rest_id;
+        return new User(this, result);
+      }
+    } catch {
+      // Fall through to the upstream route below.
+    }
     return this.getUserById(await this.userId());
   }
 

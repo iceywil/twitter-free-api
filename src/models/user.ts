@@ -64,45 +64,54 @@ export class User {
   /** Whether the user's account is protected (private). */
   readonly protected: boolean;
 
+  /**
+   * x.com is migrating the user payload away from a single `legacy` blob toward
+   * per-concern objects (`core`, `avatar`, `profile_bio`, `relationship_counts`,
+   * ...). Both shapes are live at once — `UserByScreenName` still returns
+   * `legacy`, while `Viewer` returns only the new shape — so each field reads
+   * `legacy` first and falls back to its new-schema location.
+   */
   constructor(
     private readonly client: Client,
     data: Record<string, any>
   ) {
     const legacy = data.legacy ?? {};
+    const core = data.core ?? {};
 
     this.id = data.rest_id;
-    this.createdAt = legacy.created_at;
-    this.name = legacy.name;
-    this.screenName = legacy.screen_name;
-    this.profileImageUrl = legacy.profile_image_url_https;
-    this.profileBannerUrl = legacy.profile_banner_url ?? null;
-    this.url = legacy.url ?? null;
-    this.location = legacy.location;
-    this.description = legacy.description;
-    this.descriptionUrls = legacy.entities?.description?.urls ?? [];
+    this.createdAt = legacy.created_at ?? core.created_at;
+    this.name = legacy.name ?? core.name;
+    this.screenName = legacy.screen_name ?? core.screen_name;
+    this.profileImageUrl = legacy.profile_image_url_https ?? data.avatar?.image_url;
+    this.profileBannerUrl = legacy.profile_banner_url ?? data.banner?.image_url ?? null;
+    this.url = legacy.url ?? data.website?.url ?? null;
+    this.location = legacy.location ?? data.location?.location;
+    this.description = legacy.description ?? data.profile_bio?.description;
+    this.descriptionUrls =
+      legacy.entities?.description?.urls ?? data.profile_bio?.entities?.description?.urls ?? [];
     this.urls = legacy.entities?.url?.urls ?? null;
-    this.pinnedTweetIds = legacy.pinned_tweet_ids_str;
+    this.pinnedTweetIds = legacy.pinned_tweet_ids_str ?? [];
     this.isBlueVerified = data.is_blue_verified;
-    this.verified = legacy.verified;
-    this.possiblySensitive = legacy.possibly_sensitive;
-    this.canDm = legacy.can_dm;
-    this.canMediaTag = legacy.can_media_tag;
+    this.verified = legacy.verified ?? data.verification?.verified;
+    this.possiblySensitive = legacy.possibly_sensitive ?? data.possibly_sensitive;
+    this.canDm = legacy.can_dm ?? data.dm_permissions?.can_dm;
+    this.canMediaTag = legacy.can_media_tag ?? data.media_permissions?.can_media_tag;
     this.wantRetweets = legacy.want_retweets;
     this.defaultProfile = legacy.default_profile;
     this.defaultProfileImage = legacy.default_profile_image;
     this.hasCustomTimelines = legacy.has_custom_timelines;
-    this.followersCount = legacy.followers_count;
+    this.followersCount = legacy.followers_count ?? data.relationship_counts?.followers;
     this.fastFollowersCount = legacy.fast_followers_count;
     this.normalFollowersCount = legacy.normal_followers_count;
-    this.followingCount = legacy.friends_count;
-    this.favouritesCount = legacy.favourites_count;
+    this.followingCount = legacy.friends_count ?? data.relationship_counts?.following;
+    this.favouritesCount = legacy.favourites_count ?? data.action_counts?.favorites_count;
     this.listedCount = legacy.listed_count;
-    this.mediaCount = legacy.media_count;
-    this.statusesCount = legacy.statuses_count;
+    this.mediaCount = legacy.media_count ?? data.tweet_counts?.media_tweets;
+    this.statusesCount = legacy.statuses_count ?? data.tweet_counts?.tweets;
     this.isTranslator = legacy.is_translator;
     this.translatorType = legacy.translator_type;
     this.withheldInCountries = legacy.withheld_in_countries;
-    this.protected = legacy.protected ?? false;
+    this.protected = legacy.protected ?? data.privacy?.protected ?? false;
   }
 
   /** The account creation time as a `Date`. */

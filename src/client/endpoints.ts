@@ -73,4 +73,8 @@ export const Endpoint = {
   MODERATORS_SLICE_TIMELINE_QUERY: url('9KI_r8e-tgp3--N5SZYVjg/moderatorsSliceTimeline_Query'),
   COMMUNITY_TWEET_SEARCH_MODULE_QUERY: url('5341rmzzvdjqfmPKfoHUBw/CommunityTweetSearchModuleQuery'),
   TWEET_RESULTS_BY_REST_IDS: url('PTN9HhBAlpoCTHfspDgqLA/TweetResultsByRestIds'),
+  // Not present upstream. Added because every v1.1 account endpoint
+  // (settings.json, verify_credentials.json) now returns 404, leaving this
+  // as the only way to resolve the authenticated user's own id.
+  VIEWER: url('5XShkXk2oO2J7SYmTu6pvw/Viewer'),
 } as const;

@@ -116,10 +116,14 @@ Dependency substitutions: `httpx` → `axios` + `tough-cookie` (redirects and st
 
 ### Deliberate fixes
 
-Two places where following upstream exactly would break at runtime:
+Places where following upstream exactly would break at runtime. Each was found by running both libraries side by side against the live API.
 
-- **Unavailable quoted/retweeted tweets.** x.com returns `quoted_status_result: {}` for a deleted quote. Upstream indexes straight into it and raises; here `tweet.quote` is simply `null`. This is reproducible on real timelines (@jack's, for one).
-- **The transaction-id header.** See below.
+- **The transaction-id header.** See below. As shipped, upstream currently fails on *every* call because of this; the port is only usable at all because it degrades.
+- **Unavailable quoted/retweeted tweets.** x.com returns `quoted_status_result: {}` for a deleted quote. Upstream indexes straight into it and raises; here `tweet.quote` is simply `null`. Reproducible on real timelines (@jack's, for one).
+- **The two user schemas.** x.com is migrating the user payload from a single `legacy` blob to per-concern objects (`core`, `avatar`, `profile_bio`, `relationship_counts`, `tweet_counts`, ...). Both are live at once: `UserByScreenName` still returns `legacy`, while `Viewer` returns only the new shape. Every `User` field reads `legacy` first and falls back to its new-schema location. Upstream, which assumes `legacy`, throws `KeyError: 'urls'` on the home timeline and on user tweets.
+- **Empty request bodies.** httpx sends `data={}` as an empty form body with `content-type: application/x-www-form-urlencoded`; x.com answers 404. The port sends no body and leaves the content type alone. This is the difference between a working and a non-working guest client.
+- **`userId()` / `user()`.** Upstream reads these from `1.1/account/settings.json`. Every v1.1 account route (`settings.json`, `verify_credentials.json`) now returns 404, so both resolve through the GraphQL `Viewer` operation, keeping the upstream path as a fallback. `user()` is built straight from the `Viewer` payload, which also sidesteps `UserByRestId` — an endpoint some networks see WAF-blocked while the rest of the GraphQL surface stays reachable.
+- **`getTrends()` retries.** Upstream recurses without a bound while x.com returns an empty guide response. The port keeps retrying but caps it at `Client.MAX_TREND_ATTEMPTS` (10).
 
 ## The `x-client-transaction-id` header
 
@@ -138,6 +142,23 @@ new Client({ requireTransactionId: true });
 ```
 
 Pass `silent: true` to suppress the warning.
+
+## Known limitations
+
+Verified against the live API. None of these are fixable in library code:
+
+- **`login()` is blocked for non-browser clients.** `POST /1.1/onboarding/task.json` returns a Cloudflare *"Sorry, you have been blocked"* page. Reproduced identically from Node, Python/httpx and curl, on both datacenter and residential IPs, with and without browser-like headers, cookies and a transaction-id header — the block happens before the request reaches x.com's API. Use exported browser cookies instead:
+
+  ```ts
+  const client = new Client();
+  await client.loadCookies('cookies.json');   // { "auth_token": "...", "ct0": "..." }
+  ```
+
+  Read endpoints are unaffected, so this path works normally.
+
+- **Search can be restricted per account.** `SearchTimeline` may return an empty `404` for every product (`Top`/`Latest`/`People`). When it does, the response still carries `x-rate-limit-limit` and `x-transaction-id`, so the request reached x.com and was answered by its backend — it is an account-level gate (new accounts are commonly affected), not a stale query ID. Refreshing the query ID does not change it; other operations keep working with their shipped IDs.
+
+- **`getTrends()` can return an empty array.** The `guide.json` endpoint sometimes yields a cursor-only response indefinitely for a given session, where the Python library on the same account and cookies gets results. Requests are byte-identical (URL, headers, cookie header), so the cause is below the HTTP layer and is unresolved.
 
 ## Configuration
 
@@ -192,7 +213,7 @@ npx tsx examples/basic.ts
 ## Testing
 
 ```bash
-npm test                    # 62 unit tests, no network
+npm test                    # 66 unit tests, no network
 npx tsx scripts/smoke.ts    # live check; runs the guest half with no credentials
 ```
 
