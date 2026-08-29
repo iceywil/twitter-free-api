@@ -129,13 +129,15 @@ Places where following upstream exactly would break at runtime. Each was found b
 
 x.com expects requests to carry this header. Generating it means scraping a key-byte index table and a loading-animation SVG out of the logged-out home page — markup X reshapes periodically.
 
-**As of the last check, that markup no longer contains those inputs**, so the header cannot be built by upstream's algorithm. Rather than fail every request, this port emits one warning and continues without the header:
+**As of the last check, upstream's algorithm can no longer be run at all.** The verification key and the four `loading-x-anim` frames are still on the page, but the `ondemand.s` hash that locates the key-byte index table is absent from the HTML and from every bundle (`main`, `vendor`, `en` — 2.3 MB scanned), and the `obfiowerehiring` keyword the hash input depends on appears in none of them. That points to x.com having replaced the scheme rather than moved it, so recovering it means reverse-engineering the current signing code — a separate project from this port, against a moving target.
+
+Rather than fail every request, this port emits one warning and continues without the header:
 
 ```
 twikit-ts: could not generate the x-client-transaction-id header (...); continuing without it.
 ```
 
-Requests still work (the guest client's smoke test passes with the header absent). The generator is fully ported and will start working again the moment the page exposes those inputs. To treat the failure as fatal instead:
+Most requests still work without it (the guest client, timelines, user lookups and `Viewer` all pass). The routes that do require it — `login()` and the search operations — are listed under **Known limitations**. The generator is fully ported and will start working again the moment the page exposes those inputs. To treat the failure as fatal instead:
 
 ```ts
 new Client({ requireTransactionId: true });
@@ -156,7 +158,17 @@ Verified against the live API. None of these are fixable in library code:
 
   Read endpoints are unaffected, so this path works normally.
 
-- **Search can be restricted per account.** `SearchTimeline` may return an empty `404` for every product (`Top`/`Latest`/`People`). When it does, the response still carries `x-rate-limit-limit` and `x-transaction-id`, so the request reached x.com and was answered by its backend — it is an account-level gate (new accounts are commonly affected), not a stale query ID. Refreshing the query ID does not change it; other operations keep working with their shipped IDs.
+- **`searchTweet()` / `searchUser()` / `searchList()` return an empty `404`.** Same root cause as `login()`: these routes require client attestation a plain HTTP client cannot produce. What was ruled out, by testing against the live API:
+
+  | Ruled out | Evidence |
+  | --- | --- |
+  | Stale query ID | the live ID (`hyPfJYJ_XAtDYoslQc-Rgg`) 404s exactly like the shipped one, while other operations work on their shipped IDs |
+  | Account gating | search works in the browser on the same account |
+  | Bad `features` / params | identical 404 with the full set, no set, an empty set, and with `fieldToggles` |
+  | Wrong `Referer` | no change |
+  | Missing transaction-id header alone | no change with a placeholder header |
+
+  Every variant returns a byte-identical zero-length 404 while still carrying `x-rate-limit-limit`, so the request reaches x.com and is refused at the route. A parameter error would return JSON.
 
 - **`getTrends()` can return an empty array.** The `guide.json` endpoint sometimes yields a cursor-only response indefinitely for a given session, where the Python library on the same account and cookies gets results. Requests are byte-identical (URL, headers, cookie header), so the cause is below the HTTP layer and is unresolved.
 
