@@ -57,9 +57,7 @@ import {
   tweetFromData,
 } from '../models/tweet.js';
 import { User } from '../models/user.js';
-import { solveUiMetrics } from '../uiMetrics/index.js';
 import {
-  Flow,
   Result,
   buildTweetData,
   buildUserData,
@@ -68,6 +66,7 @@ import {
   type SearchOptions,
 } from '../utils.js';
 import { GQLClient, type ApiResult } from './gql.js';
+import { NativeLoginFlow } from './nativeLogin.js';
 import { V11Client, V11Endpoint } from './v11.js';
 
 const DEFAULT_USER_AGENT =
@@ -94,6 +93,8 @@ export interface ClientOptions {
    * TOTP secret). Defaults to reading a line from stdin.
    */
   prompt?: (message: string) => Promise<string>;
+  /** Timezone string (e.g. 'Europe/Paris') sent with native login requests. */
+  loginTimezone?: string;
 }
 
 export interface LoginOptions {
@@ -144,6 +145,8 @@ export class Client {
   private agent: string;
   private actAs: string | null = null;
   private readonly promptFn: (message: string) => Promise<string>;
+  /** Timezone sent with login requests; can be overridden via options. */
+  loginTimezone: string | undefined;
 
   constructor(options: ClientOptions = {}) {
     this.http = new HttpSession({
@@ -160,6 +163,7 @@ export class Client {
 
     this.agent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.promptFn = options.prompt ?? defaultPrompt;
+    this.loginTimezone = options.loginTimezone;
 
     this.gql = new GQLClient(this);
     this.v11 = new V11Client(this);
@@ -176,6 +180,20 @@ export class Client {
   /** The underlying transaction-id generator. */
   get clientTransaction(): ClientTransaction {
     return this.transactions.transaction;
+  }
+
+  /**
+   * Generates an `x-client-transaction-id` for a request. Initialises the
+   * generator (fetching the index table) on first use.
+   * @internal
+   */
+  async generateTransactionId(method: string, path: string): Promise<string> {
+    const headers: Record<string, string> = {};
+    await this.transactions.apply(this.http, method, `https://x.com${path}`, headers, {
+      language: this.language,
+      userAgent: this.agent,
+    });
+    return headers['X-Client-Transaction-Id'] ?? '';
   }
 
   get proxy(): string | null {
@@ -298,12 +316,6 @@ export class Client {
     return response.guest_token;
   }
 
-  private async uiMetrics(): Promise<string> {
-    // twitter.com (not x.com) is required here.
-    const [response] = await this.get<string>('https://twitter.com/i/js_inst?c_name=ui_metrics');
-    return String(response);
-  }
-
   /**
    * Logs into the account.
    *
@@ -335,117 +347,32 @@ export class Client {
       return undefined;
     }
 
+    // x.com retired the onboarding flow upstream drives; use the current
+    // native jfapi flow, which needs a Castle device token and a transaction id
+    // (both generated natively). The legacy Flow path below is unreachable on
+    // today's endpoints and kept only as a reference.
     const guestToken = await this.getGuestToken();
-    const flow = new Flow(this, guestToken);
 
-    await flow.executeTask([], {
-      params: { flow_name: 'login' },
-      data: {
-        input_flow_data: {
-          flow_context: {
-            debug_overrides: {},
-            start_location: { location: 'splash_screen' },
-          },
-        },
-        subtask_versions: SUBTASK_VERSIONS,
-      },
-    });
-
-    await flow.ssoInit('apple');
-
-    const uiMetricsResponse = enableUiMetrics ? solveUiMetrics(await this.uiMetrics()) : '';
-
-    await flow.executeTask([
-      {
-        subtask_id: 'LoginJsInstrumentationSubtask',
-        js_instrumentation: { response: uiMetricsResponse, link: 'next_link' },
-      },
-    ]);
-
-    await flow.executeTask([
-      {
-        subtask_id: 'LoginEnterUserIdentifierSSO',
-        settings_list: {
-          setting_responses: [
-            {
-              key: 'user_identifier',
-              response_data: { text_data: { result: authInfo1 } },
-            },
-          ],
-          link: 'next_link',
-        },
-      },
-    ]);
-
-    if (flow.taskId === 'LoginEnterAlternateIdentifierSubtask') {
-      await flow.executeTask([
-        {
-          subtask_id: 'LoginEnterAlternateIdentifierSubtask',
-          enter_text: { text: authInfo2, link: 'next_link' },
-        },
-      ]);
-    }
-
-    if (flow.taskId === 'DenyLoginSubtask') {
-      throw new TwitterException(
-        flow.response?.subtasks?.[0]?.cta?.secondary_text?.text as string
-      );
-    }
-
-    await flow.executeTask([
-      {
-        subtask_id: 'LoginEnterPassword',
-        enter_password: { password, link: 'next_link' },
-      },
-    ]);
-
-    if (flow.taskId === 'DenyLoginSubtask') {
-      throw new TwitterException(
-        flow.response?.subtasks?.[0]?.cta?.secondary_text?.text as string
-      );
-    }
-
-    if (flow.taskId === 'LoginAcid') {
-      const secondaryText = findDict(flow.response, 'secondary_text', true)[0]?.text;
-      const code = await this.promptFn(String(secondaryText ?? 'Enter the confirmation code'));
-      await flow.executeTask([
-        { subtask_id: 'LoginAcid', enter_text: { text: code, link: 'next_link' } },
-      ]);
-      return flow.response ?? undefined;
-    }
-
-    if (flow.taskId === 'LoginTwoFactorAuthChallenge') {
-      let totpCode: string;
-      if (totpSecret === undefined) {
-        const secondaryText = findDict(flow.response, 'secondary_text', true)[0]?.text;
-        totpCode = await this.promptFn(String(secondaryText ?? 'Enter the 2FA code'));
-      } else {
-        totpCode = new TOTP({ secret: totpSecret }).generate();
-      }
-      await flow.executeTask([
-        {
-          subtask_id: 'LoginTwoFactorAuthChallenge',
-          enter_text: { text: totpCode, link: 'next_link' },
-        },
-      ]);
-    }
-
-    await flow.executeTask([
-      {
-        subtask_id: 'AccountDuplicationCheck',
-        check_logged_in_account: { link: 'AccountDuplicationCheck_false' },
-      },
-    ]);
-
+    const nativeFlow = await NativeLoginFlow.create(this.http, {
+      authInfo1,
+      authInfo2,
+      password,
+      totpSecret,
+      timezone: this.loginTimezone,
+      userAgent: this.agent,
+      guestToken,
+      transactionId: async (method: string, path: string) => this.generateTransactionId(method, path),
+      prompt: this.promptFn,
+    } as any);
+    const cookies = await nativeFlow.run();
+    this.setCookies(cookies, true);
+    this.currentUserId = null;
     if (cookiesFile) await this.saveCookies(cookiesFile);
+    void enableUiMetrics;
+    return cookies;
 
-    if (!flow.response?.subtasks?.length) return undefined;
-
-    this.currentUserId = findDict(flow.response, 'id_str', true)[0];
-    return flow.response ?? undefined;
   }
 
-  /** Logs out of the account. */
   async logout(): Promise<HttpResponse> {
     const [, response] = await this.v11.accountLogout();
     return response;
@@ -2843,50 +2770,6 @@ async function defaultPrompt(message: string): Promise<string> {
   }
 }
 
-/** Subtask versions sent when starting the login flow. */
-const SUBTASK_VERSIONS: Record<string, number> = {
-  action_list: 2,
-  alert_dialog: 1,
-  app_download_cta: 1,
-  check_logged_in_account: 1,
-  choice_selection: 3,
-  contacts_live_sync_permission_prompt: 0,
-  cta: 7,
-  email_verification: 2,
-  end_flow: 1,
-  enter_date: 1,
-  enter_email: 2,
-  enter_password: 5,
-  enter_phone: 2,
-  enter_recaptcha: 1,
-  enter_text: 5,
-  enter_username: 2,
-  generic_urt: 3,
-  in_app_notification: 1,
-  interest_picker: 3,
-  js_instrumentation: 1,
-  menu_dialog: 1,
-  notifications_permission_prompt: 2,
-  open_account: 2,
-  open_home_timeline: 1,
-  open_link: 1,
-  phone_verification: 4,
-  privacy_options: 1,
-  security_key: 3,
-  select_avatar: 4,
-  select_banner: 2,
-  settings_list: 7,
-  show_code: 1,
-  sign_up: 2,
-  sign_up_review: 4,
-  tweet_selection_urt: 1,
-  update_users: 1,
-  upload_media: 1,
-  user_recommendations_list: 4,
-  user_recommendations_urt: 1,
-  wait_spinner: 3,
-  web_modal: 1,
-};
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();

@@ -155,44 +155,51 @@ without the header rather than failing every request. Pass
 `requireTransactionId: true` to treat it as fatal, or `silent: true` to mute the
 warning.
 
+## Login
+
+`client.login()` runs x.com's current native flow — no browser:
+
+```ts
+const client = new Client({ loginTimezone: 'Europe/Paris' });
+await client.login({
+  authInfo1: 'username',        // or email / phone
+  password: 'password',
+  totpSecret: 'BASE32SECRET',   // optional, for 2FA
+  cookiesFile: 'cookies.json',  // reused on later runs to skip login
+});
+```
+
+x.com retired `1.1/onboarding/task.json` (what upstream drives). The live flow
+is `/i/jfapi/onboarding/web/actions/begin_login` then `login_enter_password`,
+and each POST carries a `$castle_token` from the Castle.io device-signals SDK.
+That SDK is configured with a *publishable* key (`pk_…`, read live from the
+login page), so nothing secret signs the token — it is produced entirely by
+public client JS. The library fetches that SDK (`ondemand.castle`, resolved
+through the same webpack manifests as `ondemand.s`) and runs it under `node:vm`
+in a locked-down sandbox to mint a genuine token. A token minted this way was
+verified accepted by `begin_login`: the request passed Castle's device check and
+advanced to username validation.
+
+**Security note.** This executes x.com's own SDK in a `node:vm` context whose
+global has no `require`, `process`, `fs`, or real network — only a
+self-resolving XHR stub. The SDK exposes just `configure` and
+`createRequestToken`. If you would rather not run remote JS, use exported
+cookies instead:
+
+```ts
+const client = new Client();
+await client.loadCookies('cookies.json');   // { "auth_token": "...", "ct0": "..." }
+```
+
+A Playwright-based `browserLogin()` (optional `twikit-ts/browser` entry point)
+is also available if you prefer a real browser for the one-time cookie grab.
+
 ## Known limitations
 
-- **`login()` cannot be done natively.** x.com retired
-  `1.1/onboarding/task.json`, which upstream calls. The live flow is a
-  `/i/jfapi/onboarding/web/actions/*` service, and both of its POSTs carry a
-  `$castle_token` — a ~6 KB opaque encrypted blob from the Castle.io device
-  fingerprinting SDK (`main.js` references `castle_sdk_enabled` and
-  `castle_public_key`). It is derived from in-browser device telemetry and
-  signed with Castle's key, so unlike the transaction-id header it cannot be
-  computed in Node. No token-free variant of the flow exists.
-
-  Two supported options. Either load cookies you already have:
-
-  ```ts
-  const client = new Client();
-  await client.loadCookies('cookies.json');   // { "auth_token": "...", "ct0": "..." }
-  ```
-
-  Or drive a real browser once with the optional `twikit-ts/browser` entry
-  point, which lets Castle's SDK run and hands back the cookies:
-
-  ```ts
-  import { browserLogin } from 'twikit-ts/browser';
-
-  const { cookies } = await browserLogin({
-    authInfo1: 'username',
-    password: 'password',
-    totpSecret: 'BASE32SECRET',   // optional
-  });
-
-  const client = new Client();
-  client.setCookies(cookies);
-  await client.saveCookies('cookies.json'); // reuse later, no browser
-  ```
-
-  Playwright is an optional peer dependency, needed only for that module
-  (`npm install playwright && npx playwright install chromium`). Everything
-  else, search included, runs from cookies with no browser.
+- **Login rate-limiting is per-IP.** `begin_login` throttles by IP across
+  attempts (`"We've temporarily limited your login. Please try again later."`),
+  independent of the account, so avoid rapid repeated login calls. Once
+  throttled the limit clears on its own after a while.
 
 - **`getTrends()` ignores `category` when it falls back.** v1.1 `guide.json`,
   which upstream uses, now answers with a cursor-only payload — verified

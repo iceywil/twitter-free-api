@@ -9,6 +9,8 @@ export {
   handleXMigration,
   isOdd,
   pyRound,
+  resolveChunkUrl,
+  resolveOndemandCastleUrl,
   resolveOndemandFileUrl,
   type CheerioRoot,
   type TransactionSession,

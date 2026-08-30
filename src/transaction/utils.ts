@@ -50,12 +50,21 @@ export function resolveOndemandFileUrl(html: string): string | null {
   const legacy = /['"]{1}ondemand\.s['"]{1}:\s*['"]{1}([\w]*)['"]{1}/.exec(html);
   if (legacy) return `${base}.${legacy[1]}a.js`;
 
+  return resolveChunkUrl(html, 'ondemand.s');
+}
+
+/**
+ * Resolves the URL of a named webpack chunk from the two manifests embedded in
+ * the app shell: chunk id -> name (the `r.u` filename builder) and chunk id ->
+ * contenthash. Returns null if the manifests or the chunk are not present.
+ */
+export function resolveChunkUrl(html: string, chunkName: string): string | null {
   const builderIndex = html.search(/\.u\s*=\s*\w*\s*=>/);
   if (builderIndex === -1) return null;
 
   const nameMap = firstObjectLiteral(html, builderIndex);
   const chunkId = [...nameMap.matchAll(/(\d{3,7}):"([^"]+)"/g)].find(
-    (m) => m[2] === 'ondemand.s'
+    (m) => m[2] === chunkName
   )?.[1];
   if (chunkId === undefined) return null;
 
@@ -64,7 +73,12 @@ export function resolveOndemandFileUrl(html: string): string | null {
   )?.[2];
   if (hash === undefined) return null;
 
-  return `${base}.${hash}a.js`;
+  return `https://abs.twimg.com/responsive-web/client-web/${chunkName}.${hash}a.js`;
+}
+
+/** Resolves the Castle device-signals SDK bundle (`ondemand.castle`). */
+export function resolveOndemandCastleUrl(html: string): string | null {
+  return resolveChunkUrl(html, 'ondemand.castle');
 }
 
 const MIGRATION_REDIRECTION_REGEX =
