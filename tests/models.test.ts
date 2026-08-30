@@ -413,3 +413,25 @@ describe('collectTimelineTrends', () => {
     expect(collectTimelineTrends(null)).toEqual([]);
   });
 });
+
+describe('cursor value extraction (Client.cursorValue)', () => {
+  // Reply cursors and thread cursors nest their value differently. Both must
+  // be read without throwing (regression: getTweetById crashed on
+  // cursor-showmorethreads, whose value is at content.value not
+  // content.itemContent.value).
+  const cursorValue = (entry: any): string | null =>
+    entry?.content?.itemContent?.value ?? entry?.content?.value ?? null;
+
+  it('reads a reply cursor at content.itemContent.value', () => {
+    expect(cursorValue({ entryId: 'cursor-bottom-1', content: { itemContent: { value: 'A' } } })).toBe('A');
+  });
+
+  it('reads a thread cursor at content.value', () => {
+    expect(cursorValue({ entryId: 'cursor-showmorethreads-1', content: { __typename: 'TimelineTimelineCursor', cursorType: 'Bottom', value: 'B' } })).toBe('B');
+  });
+
+  it('returns null when neither shape is present', () => {
+    expect(cursorValue({ entryId: 'cursor-x', content: {} })).toBeNull();
+    expect(cursorValue({})).toBeNull();
+  });
+});

@@ -1081,6 +1081,15 @@ export class Client {
     return new Place(this, response);
   }
 
+  /**
+   * Reads a cursor entry's value. Reply cursors put it at
+   * `content.itemContent.value`, while thread cursors
+   * (`cursor-showmorethreads-*`) put it directly at `content.value`.
+   */
+  private static cursorValue(entry: any): string | null {
+    return entry?.content?.itemContent?.value ?? entry?.content?.value ?? null;
+  }
+
   private async getMoreReplies(tweetId: string, cursor: string): Promise<Result<Tweet>> {
     const [response] = await this.gql.tweetDetail(tweetId, cursor);
     const entries = findDict(response, 'entries', true)[0] ?? [];
@@ -1097,8 +1106,8 @@ export class Client {
     let nextCursor: string | null = null;
     let fetchNext: (() => Promise<Result<Tweet>>) | null = null;
     if (last && String(last.entryId).startsWith('cursor')) {
-      nextCursor = last.content.itemContent.value;
-      fetchNext = () => this.getMoreReplies(tweetId, nextCursor as string);
+      nextCursor = Client.cursorValue(last);
+      if (nextCursor !== null) fetchNext = () => this.getMoreReplies(tweetId, nextCursor as string);
     }
 
     return new Result<Tweet>(results, fetchNext, nextCursor);
@@ -1172,7 +1181,7 @@ export class Client {
           if (rpl !== null) replies.push(rpl);
         }
         if (replyEntryId.includes('cursor')) {
-          srCursor = reply.item.itemContent.value;
+          srCursor = reply.item?.itemContent?.value ?? reply.item?.content?.value ?? null;
           showReplies = () => this.showMoreReplies(tweetId, srCursor as string);
         }
       }
@@ -1194,8 +1203,10 @@ export class Client {
     let replyNextCursor: string | null = null;
     let fetchMoreReplies: (() => Promise<Result<Tweet>>) | null = null;
     if (last && String(last.entryId).startsWith('cursor')) {
-      replyNextCursor = last.content.itemContent.value;
-      fetchMoreReplies = () => this.getMoreReplies(tweetId, replyNextCursor as string);
+      replyNextCursor = Client.cursorValue(last);
+      if (replyNextCursor !== null) {
+        fetchMoreReplies = () => this.getMoreReplies(tweetId, replyNextCursor as string);
+      }
     }
 
     tweet.replies = new Result<Tweet>(repliesList, fetchMoreReplies, replyNextCursor);

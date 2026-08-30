@@ -49,7 +49,7 @@ const jfHeaders = (path: string) => ({
 });
 
 const username = process.env.LOGIN_USERNAME || process.env.TWITTER_AUTH_INFO_1!;
-const password = process.env.TWITTER_PASSWORD!;
+const password = process.env.LOGIN_PASSWORD || process.env.TWITTER_PASSWORD!;
 
 // --- STEP 1: begin_login ---
 const p1 = '/i/jfapi/onboarding/web/actions/begin_login';
