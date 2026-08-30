@@ -2761,7 +2761,7 @@ export class Client {
    * Opens a streaming session for the given topics.
    *
    * @example
-   * import { Topic } from 'twikit-ts';
+   * import { Topic } from 'twitter-free-api';
    *
    * const topics = new Set([
    *   Topic.tweetEngagement('1739617652'),

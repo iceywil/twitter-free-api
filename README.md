@@ -1,4 +1,4 @@
-# twikit-ts
+# twitter-free-api
 
 **A no-API-key Twitter/X client for TypeScript.** It authenticates the way the
 web app does and speaks the same internal GraphQL and v1.1 endpoints — so you
@@ -40,7 +40,7 @@ them. Strict TypeScript, shipped as ESM + CJS with complete type declarations.
 It lives in a private repo; install it straight from GitHub (pinned to a tag):
 
 ```bash
-npm install git+ssh://git@github.com/iceywil/twikit-ts.git#v0.1.0
+npm install git+ssh://git@github.com/iceywil/twitter-free-api.git#v0.1.0
 ```
 
 The package builds itself on install (`prepare`). Node 20+.
@@ -54,7 +54,7 @@ npm install && npm run build && npm test
 ## Quick start
 
 ```ts
-import { Client } from 'twikit-ts';
+import { Client } from 'twitter-free-api';
 
 const client = new Client({ language: 'en-US' });
 
@@ -81,7 +81,7 @@ const nextPage = await tweets.next();
 The guest client reads public data using a guest token:
 
 ```ts
-import { GuestClient } from 'twikit-ts';
+import { GuestClient } from 'twitter-free-api';
 
 const client = new GuestClient();
 await client.activate();
@@ -106,7 +106,7 @@ await client.createTweet('Pick one', { pollUri });
 ### Real-time streaming
 
 ```ts
-import { Topic } from 'twikit-ts';
+import { Topic } from 'twitter-free-api';
 
 const session = await client.getStreamingSession(
   new Set([Topic.tweetEngagement('1519480761749016577')])
@@ -133,7 +133,7 @@ const back = await page2.previous();
 
 The API is the same shape; the naming follows TypeScript conventions.
 
-| Python | twikit-ts |
+| Python | twitter-free-api |
 | --- | --- |
 | `snake_case` methods and attributes | `camelCase` (`get_user_by_id` → `getUserById`, `tweet.favorite_count` → `tweet.favoriteCount`) |
 | keyword arguments | a trailing options object (`client.login({ authInfo1, password })`) |
@@ -224,7 +224,7 @@ const client = new Client();
 await client.loadCookies('cookies.json');   // { "auth_token": "...", "ct0": "..." }
 ```
 
-A Playwright-based `browserLogin()` (optional `twikit-ts/browser` entry point)
+A Playwright-based `browserLogin()` (optional `twitter-free-api/browser` entry point)
 is also available if you prefer a real browser for the one-time cookie grab.
 
 ## Known limitations
@@ -263,7 +263,7 @@ new Client({
 Locked accounts can be unlocked automatically with [Capsolver](https://capsolver.com):
 
 ```ts
-import { Capsolver, Client } from 'twikit-ts';
+import { Capsolver, Client } from 'twitter-free-api';
 
 const client = new Client({
   captchaSolver: new Capsolver({ apiKey: process.env.CAPSOLVER_API_KEY!, maxAttempts: 10 }),

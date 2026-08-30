@@ -16,7 +16,7 @@ await client.login({
 });
 
 // Text only.
-const tweet = await client.createTweet('Hello from twikit-ts');
+const tweet = await client.createTweet('Hello from twitter-free-api');
 console.log('posted', tweet?.id);
 
 // With media.

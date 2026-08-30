@@ -85,7 +85,7 @@ export class TransactionManager {
     if (!this.warned && !this.options.silent) {
       this.warned = true;
       console.warn(
-        `twikit-ts: could not generate the x-client-transaction-id header ` +
+        `twitter-free-api: could not generate the x-client-transaction-id header ` +
           `(${(error as Error).message}); continuing without it. ` +
           `x.com has likely changed its home page markup. ` +
           `Pass requireTransactionId: true to treat this as fatal.`

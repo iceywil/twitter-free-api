@@ -69,8 +69,8 @@ async function totpNow(secret: string): Promise<string> {
  * Logs in through a real browser and returns the session cookies.
  *
  * @example
- * import { browserLogin } from 'twikit-ts/browser';
- * import { Client } from 'twikit-ts';
+ * import { browserLogin } from 'twitter-free-api/browser';
+ * import { Client } from 'twitter-free-api';
  *
  * const { cookies } = await browserLogin({
  *   authInfo1: 'username',

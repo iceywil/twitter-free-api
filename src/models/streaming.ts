@@ -146,7 +146,7 @@ export class StreamingSession {
    * Updates subscriptions for the session.
    *
    * @example
-   * import { Topic } from 'twikit-ts';
+   * import { Topic } from 'twitter-free-api';
    * await session.updateSubscriptions(
    *   new Set([Topic.tweetEngagement('1749528513')]),
    *   new Set([Topic.dmUpdate('17544932482-174455537996')])

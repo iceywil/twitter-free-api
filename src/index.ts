@@ -1,5 +1,5 @@
 /**
- * twikit-ts — a TypeScript port of the Python library `twikit`.
+ * twitter-free-api — a TypeScript port of the Python library `twikit`.
  *
  * A Twitter/X API wrapper that needs no API key.
  *

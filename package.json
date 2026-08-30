@@ -1,5 +1,5 @@
 {
-  "name": "twikit-ts",
+  "name": "twitter-free-api",
   "version": "0.1.0",
   "description": "TypeScript port of twikit \u2014 a Twitter/X API wrapper with no API key required.",
   "license": "MIT",
@@ -59,12 +59,14 @@
     "vitest": "^2.1.8"
   },
   "keywords": [
-    "twitter",
-    "x",
     "api",
+    "no-api-key",
     "scraper",
     "twikit",
-    "typescript"
+    "twitter",
+    "twitter-free-api",
+    "typescript",
+    "x"
   ],
   "peerDependencies": {
     "playwright": "^1.40.0"
@@ -76,6 +78,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/iceywil/twikit-ts.git"
+    "url": "git+https://github.com/iceywil/twitter-free-api.git"
   }
 }
