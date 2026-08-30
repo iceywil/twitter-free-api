@@ -243,6 +243,7 @@ const client = new Client({
 - **Tweets** — create (incl. long-form note tweets, polls, media, community, reply-control, edits), schedule, delete, fetch by id(s), replies and threads, like, retweet, bookmark, similar tweets, community notes
 - **Timelines** — For You, Following, user tweets/replies/media/likes, highlights
 - **Users** — by id or handle, follow, block, mute, followers, following, verified followers, followers-you-know, subscriptions, follower/friend id lists
+- **Profile** — edit name, bio, location and URL (`updateProfile`), set profile picture (`updateProfileImage`) and banner (`updateProfileBanner` / `removeProfileBanner`), change @handle (`updateScreenName`)
 - **Search** — tweets, users, lists, communities, community tweets, plus a typed `buildQuery` helper for X's search operators
 - **DMs** — send, reply, delete, reactions, history, group DMs, group management
 - **Lists** — create, edit, banner, members, subscribers, tweets

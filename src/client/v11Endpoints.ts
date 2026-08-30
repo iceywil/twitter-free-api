@@ -42,4 +42,9 @@ export const V11Endpoint = {
   // Not present in any twikit version. The legacy adaptive search route,
   // used as a best-effort fallback when GraphQL SearchTimeline is refused.
   SEARCH_ADAPTIVE: `https://${DOMAIN}/i/api/2/search/adaptive.json`,
+  // Profile-editing endpoints. Not present in any twikit version.
+  UPDATE_PROFILE: `https://api.${DOMAIN}/1.1/account/update_profile.json`,
+  UPDATE_PROFILE_IMAGE: `https://api.${DOMAIN}/1.1/account/update_profile_image.json`,
+  UPDATE_PROFILE_BANNER: `https://api.${DOMAIN}/1.1/account/update_profile_banner.json`,
+  REMOVE_PROFILE_BANNER: `https://api.${DOMAIN}/1.1/account/remove_profile_banner.json`,
 } as const;

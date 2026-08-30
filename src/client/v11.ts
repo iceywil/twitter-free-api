@@ -97,6 +97,44 @@ export class V11Client {
     return this.base.post(V11Endpoint.ONBOARDING_SSO_INIT, { json: { provider }, headers });
   }
 
+  updateProfile(fields: Record<string, string>) {
+    return this.base.post(V11Endpoint.UPDATE_PROFILE, {
+      data: fields,
+      headers: this.formHeaders,
+    });
+  }
+
+  /** Uploads a profile image. `image` is the base64-encoded picture bytes. */
+  updateProfileImage(imageBase64: string) {
+    return this.base.post(V11Endpoint.UPDATE_PROFILE_IMAGE, {
+      data: { image: imageBase64 },
+      headers: this.formHeaders,
+    });
+  }
+
+  /** Uploads a profile banner. `banner` is the base64-encoded image bytes. */
+  updateProfileBanner(bannerBase64: string) {
+    return this.base.post(V11Endpoint.UPDATE_PROFILE_BANNER, {
+      data: { banner: bannerBase64 },
+      headers: this.formHeaders,
+    });
+  }
+
+  removeProfileBanner() {
+    return this.base.post(V11Endpoint.REMOVE_PROFILE_BANNER, {
+      data: {},
+      headers: this.formHeaders,
+    });
+  }
+
+  /** Changes the @handle (and other account settings) via settings.json. */
+  updateSettings(fields: Record<string, string>) {
+    return this.base.post(V11Endpoint.SETTINGS, {
+      data: fields,
+      headers: this.formHeaders,
+    });
+  }
+
   settings() {
     return this.base.get(V11Endpoint.SETTINGS, { headers: this.base.baseHeaders });
   }

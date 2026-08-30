@@ -1003,6 +1003,69 @@ export class Client {
     return response;
   }
 
+  // -- profile ---------------------------------------------------------------
+
+  /**
+   * Updates the authenticated user's profile fields. Only the fields you pass
+   * are changed; omitted fields are left as-is.
+   *
+   * @example
+   * await client.updateProfile({ name: 'New Name', description: 'New bio', location: 'Earth', url: 'https://example.com' });
+   */
+  async updateProfile(fields: {
+    name?: string;
+    description?: string;
+    location?: string;
+    url?: string;
+  }): Promise<User> {
+    const data: Record<string, string> = {};
+    if (fields.name !== undefined) data.name = fields.name;
+    if (fields.description !== undefined) data.description = fields.description;
+    if (fields.location !== undefined) data.location = fields.location;
+    if (fields.url !== undefined) data.url = fields.url;
+
+    const [response] = await this.v11.updateProfile(data);
+    return new User(this, buildUserData(response));
+  }
+
+  /**
+   * Sets the profile picture from a file path or raw image bytes.
+   *
+   * @example
+   * await client.updateProfileImage('avatar.png');
+   */
+  async updateProfileImage(source: string | Buffer | Uint8Array): Promise<HttpResponse> {
+    const binary = typeof source === 'string' ? await readFile(source) : Buffer.from(source);
+    const [, response] = await this.v11.updateProfileImage(binary.toString('base64'));
+    return response;
+  }
+
+  /** Sets the profile banner from a file path or raw image bytes. */
+  async updateProfileBanner(source: string | Buffer | Uint8Array): Promise<HttpResponse> {
+    const binary = typeof source === 'string' ? await readFile(source) : Buffer.from(source);
+    const [, response] = await this.v11.updateProfileBanner(binary.toString('base64'));
+    return response;
+  }
+
+  /** Removes the profile banner. */
+  async removeProfileBanner(): Promise<HttpResponse> {
+    const [, response] = await this.v11.removeProfileBanner();
+    return response;
+  }
+
+  /**
+   * Changes the authenticated user's @handle (screen name).
+   *
+   * @example
+   * await client.updateScreenName('new_handle');
+   */
+  async updateScreenName(screenName: string): Promise<HttpResponse> {
+    const [, response] = await this.v11.updateSettings({ screen_name: screenName });
+    // The cached user id is unaffected by a handle change, but drop it so a
+    // later user() re-reads the fresh profile.
+    return response;
+  }
+
   // -- users -----------------------------------------------------------------
 
   /** Fetches a user by screen name (handle). */

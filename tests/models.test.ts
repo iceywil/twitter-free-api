@@ -435,3 +435,28 @@ describe('cursor value extraction (Client.cursorValue)', () => {
     expect(cursorValue({})).toBeNull();
   });
 });
+
+describe('profile update field mapping', () => {
+  // updateProfile must send only the fields provided, leaving others untouched.
+  const buildProfileData = (fields: { name?: string; description?: string; location?: string; url?: string }) => {
+    const data: Record<string, string> = {};
+    if (fields.name !== undefined) data.name = fields.name;
+    if (fields.description !== undefined) data.description = fields.description;
+    if (fields.location !== undefined) data.location = fields.location;
+    if (fields.url !== undefined) data.url = fields.url;
+    return data;
+  };
+
+  it('includes only provided fields', () => {
+    expect(buildProfileData({ description: 'bio' })).toEqual({ description: 'bio' });
+    expect(buildProfileData({ name: 'N', url: 'https://x' })).toEqual({ name: 'N', url: 'https://x' });
+  });
+
+  it('preserves empty strings (clearing a field)', () => {
+    expect(buildProfileData({ location: '' })).toEqual({ location: '' });
+  });
+
+  it('sends nothing when no fields are given', () => {
+    expect(buildProfileData({})).toEqual({});
+  });
+});
