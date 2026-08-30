@@ -1,7 +1,7 @@
 {
   "name": "twikit-ts",
   "version": "0.1.0",
-  "description": "TypeScript port of twikit — a Twitter/X API wrapper with no API key required.",
+  "description": "TypeScript port of twikit \u2014 a Twitter/X API wrapper with no API key required.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -12,6 +12,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js",
+      "require": "./dist/browser/index.cjs"
     }
   },
   "files": [
@@ -59,5 +64,13 @@
     "scraper",
     "twikit",
     "typescript"
-  ]
+  ],
+  "peerDependencies": {
+    "playwright": "^1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  }
 }

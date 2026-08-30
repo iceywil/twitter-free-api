@@ -157,17 +157,42 @@ warning.
 
 ## Known limitations
 
-- **`login()` is not implemented against the current flow.** x.com retired
-  `1.1/onboarding/task.json`, which upstream calls; the live flow is a different
-  `/i/jfapi/onboarding/web/*` service with form-encoded payloads. Use exported
-  browser cookies instead:
+- **`login()` cannot be done natively.** x.com retired
+  `1.1/onboarding/task.json`, which upstream calls. The live flow is a
+  `/i/jfapi/onboarding/web/actions/*` service, and both of its POSTs carry a
+  `$castle_token` — a ~6 KB opaque encrypted blob from the Castle.io device
+  fingerprinting SDK (`main.js` references `castle_sdk_enabled` and
+  `castle_public_key`). It is derived from in-browser device telemetry and
+  signed with Castle's key, so unlike the transaction-id header it cannot be
+  computed in Node. No token-free variant of the flow exists.
+
+  Two supported options. Either load cookies you already have:
 
   ```ts
   const client = new Client();
   await client.loadCookies('cookies.json');   // { "auth_token": "...", "ct0": "..." }
   ```
 
-  Everything else works from cookies, including search.
+  Or drive a real browser once with the optional `twikit-ts/browser` entry
+  point, which lets Castle's SDK run and hands back the cookies:
+
+  ```ts
+  import { browserLogin } from 'twikit-ts/browser';
+
+  const { cookies } = await browserLogin({
+    authInfo1: 'username',
+    password: 'password',
+    totpSecret: 'BASE32SECRET',   // optional
+  });
+
+  const client = new Client();
+  client.setCookies(cookies);
+  await client.saveCookies('cookies.json'); // reuse later, no browser
+  ```
+
+  Playwright is an optional peer dependency, needed only for that module
+  (`npm install playwright && npx playwright install chromium`). Everything
+  else, search included, runs from cookies with no browser.
 
 - **`getTrends()` ignores `category` when it falls back.** v1.1 `guide.json`,
   which upstream uses, now answers with a cursor-only payload — verified
