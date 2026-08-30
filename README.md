@@ -1,18 +1,51 @@
 # twikit-ts
 
-A TypeScript port of [**twikit**](https://github.com/d60/twikit) — a Twitter/X API wrapper that needs **no API key**. It logs in the way a browser does and talks to the same internal GraphQL and v1.1 endpoints the web app uses.
+**A no-API-key Twitter/X client for TypeScript.** It authenticates the way the
+web app does and speaks the same internal GraphQL and v1.1 endpoints — so you
+get search, timelines, tweets, DMs, media, trends, streaming and full account
+management from plain Node, with no developer account and no browser at runtime.
 
-All ~130 client methods, all 12 data models, the login flow, media uploads, real-time streaming, the guest client, and the `x-client-transaction-id` generator are ported. Written in strict TypeScript, shipped as ESM + CJS with full type declarations.
+A ground-up TypeScript port of the Python library
+[**twikit**](https://github.com/d60/twikit), brought back to life against
+today's x.com: the endpoints, anti-bot checks and data shapes it depends on have
+all shifted since the original was written, and this port re-derives every one of
+them. Strict TypeScript, shipped as ESM + CJS with complete type declarations.
 
-> **Legal / ToS note.** This talks to private endpoints, which is against X's Terms of Service. Automating an account risks suspension. Use a throwaway account, keep request volume low, and don't use it for anything you can't afford to lose.
+> **Legal / ToS note.** This uses private endpoints, against X's Terms of
+> Service. Automating an account risks suspension. Use a throwaway account, keep
+> request volume low, and don't rely on it for anything you can't afford to lose.
+
+## Highlights
+
+- **No API key, no browser at runtime.** Everything below runs from Node over plain HTTP.
+- **Native login.** Drives x.com's current `jfapi` login flow and mints the
+  `$castle_token` (Castle.io device signals) by running the real SDK in a
+  locked-down `node:vm` sandbox — the token is accepted server-side. Falls back
+  to exported cookies or a one-time Playwright login if you prefer.
+- **Self-healing `x-client-transaction-id`.** Resolves the `ondemand.s` bundle
+  through x.com's live webpack manifests and generates the header natively — the
+  piece that stops the upstream library from working at all today.
+- **Read + search + trends.** Search (tweets/users/lists), home & user
+  timelines, tweet detail with replies, trends via the Explore endpoints, and a
+  no-login guest client.
+- **Write.** Post/delete tweets, polls, chunked media upload, likes, retweets,
+  bookmarks, follows, DMs, lists, communities.
+- **Full profile management.** Edit name, bio, location and URL; set avatar and
+  banner; change your @handle.
+- **Cursor-based pagination** on every listing, and dual-schema models that read
+  both x.com's legacy `legacy` blob and its newer per-concern payloads.
 
 ## Install
 
+It lives in a private repo; install it straight from GitHub (pinned to a tag):
+
 ```bash
-npm install twikit-ts
+npm install git+ssh://git@github.com/iceywil/twikit-ts.git#v0.1.0
 ```
 
-Node 20+. From source:
+The package builds itself on install (`prepare`). Node 20+.
+
+From source (this checkout):
 
 ```bash
 npm install && npm run build && npm test
