@@ -14,16 +14,48 @@ const PK = process.env.CASTLE_PK || 'e8bl5yQW';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36';
 
-const makeElement = (tag: string): any => ({
-  tagName: tag.toUpperCase(),
-  style: {},
-  setAttribute() {}, getAttribute: () => null, appendChild() {}, removeChild() {}, remove() {},
-  addEventListener() {}, removeEventListener() {},
-  getContext: () => null,          // no canvas/WebGL in Node
-  toDataURL: () => '',
-  width: 0, height: 0,
-  children: [], childNodes: [],
-});
+const makeElement = (tag: string): any => {
+  const attrs: any = [];
+  attrs.getNamedItem = () => null;
+  attrs.item = () => null;
+  const el: any = {
+    tagName: tag.toUpperCase(),
+    nodeName: tag.toUpperCase(),
+    nodeType: 1,
+    id: '',
+    className: '',
+    style: {},
+    // Automation probes read documentElement.attributes looking for markers
+    // such as "selenium"; an empty NamedNodeMap-like object is the honest answer.
+    attributes: attrs,
+    dataset: {},
+    classList: { add() {}, remove() {}, toggle() {}, contains: () => false, length: 0 },
+    innerHTML: '', outerHTML: '', textContent: '', innerText: '',
+    parentNode: null, parentElement: null, ownerDocument: null,
+    children: [], childNodes: [], firstChild: null, lastChild: null,
+    firstElementChild: null, lastElementChild: null,
+    nextSibling: null, previousSibling: null,
+    clientWidth: 0, clientHeight: 0, offsetWidth: 0, offsetHeight: 0,
+    scrollWidth: 0, scrollHeight: 0, offsetTop: 0, offsetLeft: 0,
+    setAttribute() {}, removeAttribute() {},
+    getAttribute: () => null,
+    hasAttribute: () => false,
+    hasAttributes: () => false,
+    getAttributeNames: () => [],
+    appendChild: (c: any) => c, removeChild: (c: any) => c, remove() {},
+    insertBefore: (c: any) => c, replaceChild: (c: any) => c,
+    cloneNode: () => makeElement(tag),
+    contains: () => false, matches: () => false, closest: () => null,
+    querySelector: () => null, querySelectorAll: () => [],
+    addEventListener() {}, removeEventListener() {}, dispatchEvent: () => true,
+    getContext: () => null,
+    toDataURL: () => '',
+    getBoundingClientRect: () => ({ x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }),
+    focus() {}, blur() {}, click() {}, scrollIntoView() {},
+    width: 0, height: 0,
+  };
+  return el;
+};
 
 const storage = () => {
   const m = new Map<string, string>();
@@ -52,6 +84,18 @@ const doc: any = {
   addEventListener() {}, removeEventListener() {},
   querySelector: () => null, querySelectorAll: () => [],
   getElementsByTagName: () => [], getElementById: () => null,
+  getElementsByClassName: () => [],
+  createEvent: () => ({ initEvent() {}, initCustomEvent() {} }),
+  createTextNode: (t: string) => ({ nodeType: 3, textContent: t }),
+  createDocumentFragment: () => makeElement('fragment'),
+  hasFocus: () => true,
+  elementFromPoint: () => null,
+  prerendering: false,
+  mozFullScreen: false,
+  webkitHidden: false,
+  fonts: { check: () => true, ready: Promise.resolve(), values: () => [][Symbol.iterator]() },
+  dispatchEvent: () => true,
+  defaultView: null,
 };
 
 const sandbox: any = {
@@ -70,10 +114,31 @@ const sandbox: any = {
     userAgent: UA, language: 'en-US', languages: ['en-US', 'en'], platform: 'MacIntel',
     hardwareConcurrency: 8, maxTouchPoints: 0, vendor: 'Google Inc.', product: 'Gecko',
     productSub: '20030107', cookieEnabled: true, onLine: true, doNotTrack: null,
-    plugins: { length: 0 }, mimeTypes: { length: 0 }, webdriver: false,
-    deviceMemory: 8, connection: undefined,
+    plugins: { length: 0, item: () => null, namedItem: () => null, refresh() {} },
+    mimeTypes: { length: 0, item: () => null, namedItem: () => null },
+    webdriver: false,
+    deviceMemory: 8,
+    appName: 'Netscape', appCodeName: 'Mozilla',
+    appVersion: '5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
+    connection: { effectiveType: '4g', rtt: 50, downlink: 10, saveData: false, addEventListener() {} },
+    mediaDevices: { enumerateDevices: async () => [], getSupportedConstraints: () => ({}) },
+    serviceWorker: { register: async () => ({}), ready: Promise.resolve({}), controller: null },
+    credentials: { get: async () => null, create: async () => null },
+    permissions: { query: async () => ({ state: 'prompt', addEventListener() {} }) },
+    storage: { estimate: async () => ({ quota: 0, usage: 0 }) },
+    getBattery: async () => ({ level: 1, charging: true, chargingTime: 0, dischargingTime: Infinity }),
+    standalone: undefined,
+    javaEnabled: () => false,
+    sendBeacon: () => true,
+    userActivation: { hasBeenActive: true, isActive: false },
+    pdfViewerEnabled: true,
+    scheduling: { isInputPending: () => false },
   },
-  screen: { width: 1512, height: 982, availWidth: 1512, availHeight: 944, colorDepth: 30, pixelDepth: 30, orientation: { angle: 0, type: 'landscape-primary' } },
+  screen: {
+    width: 1512, height: 982, availWidth: 1512, availHeight: 944,
+    availTop: 0, availLeft: 0, colorDepth: 30, pixelDepth: 30,
+    orientation: { angle: 0, type: 'landscape-primary', addEventListener() {} },
+  },
   location: { href: 'https://x.com/i/flow/login', origin: 'https://x.com', protocol: 'https:', host: 'x.com', hostname: 'x.com', pathname: '/i/flow/login', search: '', hash: '' },
   document: doc,
   localStorage: storage(),
@@ -148,22 +213,28 @@ sandbox.webpackChunk_twitter_responsive_web = {
 
 const TRACE = process.env.TRACE === '1';
 if (TRACE) {
-  const seen = new Set<string>();
-  const logUndef = (label: string, target: any) =>
-    new Proxy(target, {
+  // Wrap objects recursively so the full access path of the crashing probe is
+  // visible, including reads on nested objects.
+  const logged = new Set<string>();
+  const deep = (target: any, path: string, depth = 0): any => {
+    if (target === null || typeof target !== 'object' || depth > 3) return target;
+    return new Proxy(target, {
       get(t, k) {
+        if (typeof k !== 'string') return (t as any)[k];
         const v = (t as any)[k];
-        const key = `${label}.${String(k)}`;
-        if (v === undefined && typeof k === 'string' && !seen.has(key)) {
-          seen.add(key);
-          console.log('  [undefined read]', key);
+        const key = `${path}.${k}`;
+        if (v === undefined && !logged.has(key)) {
+          logged.add(key);
+          console.log('  [undef]', key);
         }
+        if (v !== null && typeof v === 'object' && depth < 3) return deep(v, key, depth + 1);
         return v;
       },
     });
-  sandbox.document = logUndef('document', sandbox.document);
-  sandbox.navigator = logUndef('navigator', sandbox.navigator);
-  sandbox.screen = logUndef('screen', sandbox.screen);
+  };
+  for (const name of ['document', 'navigator', 'screen', 'external', 'chrome', 'location', 'history', 'performance']) {
+    if (sandbox[name] && typeof sandbox[name] === 'object') sandbox[name] = deep(sandbox[name], name);
+  }
 }
 
 const ctx = createContext(sandbox);
