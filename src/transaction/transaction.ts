@@ -1,5 +1,4 @@
 /**
- * Ported from twikit/x_client_transaction/transaction.py
  *
  * Derived from https://github.com/iSarabjitDhiman/TweeterPy — with thanks to
  * the original author.

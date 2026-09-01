@@ -1,4 +1,3 @@
-/** Ported from twikit/geo.py */
 
 import { TwitterException } from '../errors.js';
 import type { Client } from '../client/client.js';

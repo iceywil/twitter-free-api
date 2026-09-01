@@ -1,4 +1,3 @@
-/** Ported from twikit/_captcha/capsolver.py */
 
 import axios from 'axios';
 import { CaptchaSolver } from './base.js';

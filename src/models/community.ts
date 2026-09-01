@@ -1,4 +1,3 @@
-/** Ported from twikit/community.py */
 
 import type { Client } from '../client/client.js';
 import { b64ToStr, type Result } from '../utils.js';

@@ -1,4 +1,3 @@
-/** Ported from twikit/guest/client.py */
 
 import { GQLClient } from '../client/gql.js';
 import type { ApiResult } from '../client/gql.js';

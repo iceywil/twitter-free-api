@@ -1,4 +1,3 @@
-// Ported from twikit/constants.py — kept in sync with upstream values verbatim.
 
 export const TOKEN = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
 

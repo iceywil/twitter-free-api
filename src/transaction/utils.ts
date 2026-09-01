@@ -1,4 +1,3 @@
-/** Ported from twikit/x_client_transaction/utils.py */
 
 import * as cheerio from 'cheerio';
 

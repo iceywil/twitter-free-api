@@ -1,4 +1,3 @@
-/** Ported from twikit/_captcha/base.py */
 
 import * as cheerio from 'cheerio';
 import { DOMAIN } from '../constants.js';

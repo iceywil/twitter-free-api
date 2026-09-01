@@ -2,7 +2,7 @@
  * Native login against x.com's current `/i/jfapi/onboarding/web/actions/*`
  * flow — no browser.
  *
- * Upstream twikit drives `1.1/onboarding/task.json`, which x.com retired. The
+ * x.com retired `1.1/onboarding/task.json`, the flow older clients drive. The
  * live flow is: `begin_login` (username + Castle token) → `login_enter_password`
  * (username + password + session token + Castle token), with optional 2FA. Each
  * request needs a valid `x-client-transaction-id` and a Castle device token,

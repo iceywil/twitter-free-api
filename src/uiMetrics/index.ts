@@ -1,5 +1,4 @@
 /**
- * Ported from twikit/ui_metrics/__init__.py
  *
  * The Python version evaluates the obfuscated function with Js2Py. Node runs
  * JavaScript natively, so this uses `node:vm` instead — which also removes the

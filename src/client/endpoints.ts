@@ -1,4 +1,4 @@
-/** GraphQL endpoints, ported verbatim from twikit/client/gql.py */
+/** GraphQL endpoints, verbatim as x.com serves them. */
 
 import { DOMAIN } from '../constants.js';
 

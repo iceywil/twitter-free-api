@@ -1,4 +1,3 @@
-/** Ported from twikit/client/v11.py */
 
 import FormData from 'form-data';
 import { TOKEN } from '../constants.js';

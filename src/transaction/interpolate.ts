@@ -1,4 +1,3 @@
-/** Ported from twikit/x_client_transaction/interpolate.py */
 
 export function interpolate(fromList: number[], toList: number[], f: number): number[] {
   if (fromList.length !== toList.length) {

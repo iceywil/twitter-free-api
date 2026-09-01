@@ -1,4 +1,4 @@
-/** v1.1 / internal endpoints, ported verbatim from twikit/client/v11.py */
+/** v1.1 and internal endpoints, verbatim as x.com serves them. */
 
 import { DOMAIN } from '../constants.js';
 
@@ -39,10 +39,10 @@ export const V11Endpoint = {
   LIVE_PIPELINE_EVENTS: `https://api.${DOMAIN}/live_pipeline/events`,
   LIVE_PIPELINE_UPDATE_SUBSCRIPTIONS: `https://api.${DOMAIN}/1.1/live_pipeline/update_subscriptions`,
   USER_STATE: `https://api.${DOMAIN}/help-center/forms/api/prod/user_state.json`,
-  // Not present in any twikit version. The legacy adaptive search route,
+  // Not carried by other clients. The legacy adaptive search route,
   // used as a best-effort fallback when GraphQL SearchTimeline is refused.
   SEARCH_ADAPTIVE: `https://${DOMAIN}/i/api/2/search/adaptive.json`,
-  // Profile-editing endpoints. Not present in any twikit version.
+  // Profile-editing endpoints.
   UPDATE_PROFILE: `https://api.${DOMAIN}/1.1/account/update_profile.json`,
   UPDATE_PROFILE_IMAGE: `https://api.${DOMAIN}/1.1/account/update_profile_image.json`,
   UPDATE_PROFILE_BANNER: `https://api.${DOMAIN}/1.1/account/update_profile_banner.json`,

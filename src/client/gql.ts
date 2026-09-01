@@ -1,4 +1,3 @@
-/** Ported from twikit/client/gql.py */
 
 import {
   BOOKMARK_FOLDER_TIMELINE_FEATURES,

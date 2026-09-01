@@ -1,5 +1,4 @@
 /**
- * Ported from twikit/ui_metrics/dom.py
  *
  * A minimal fake DOM. The obfuscated `ui_metrics` function only creates,
  * appends and counts elements, so nothing needs to lay anything out.

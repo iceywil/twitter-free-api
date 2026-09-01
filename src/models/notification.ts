@@ -1,4 +1,3 @@
-/** Ported from twikit/notification.py */
 
 import type { Client } from '../client/client.js';
 import type { Tweet } from './tweet.js';

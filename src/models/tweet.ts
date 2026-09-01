@@ -1,4 +1,3 @@
-/** Ported from twikit/tweet.py */
 
 import type { Client } from '../client/client.js';
 import type { HttpResponse } from '../internal/http.js';

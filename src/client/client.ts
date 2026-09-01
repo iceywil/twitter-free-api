@@ -1,4 +1,3 @@
-/** Ported from twikit/client/client.py */
 
 import { existsSync } from 'node:fs';
 import { readFile, stat, writeFile } from 'node:fs/promises';
@@ -616,7 +615,7 @@ export class Client {
    * Best-effort search via the legacy `2/search/adaptive.json` route, used when
    * GraphQL `SearchTimeline` is refused.
    *
-   * No twikit version uses this endpoint. It returns v1.1-shaped
+   * Undocumented by any other client. It returns v1.1-shaped
    * `globalObjects` instead of a GraphQL timeline, so tweets are rebuilt with
    * {@link buildTweetData} / {@link buildUserData}. x.com sometimes answers it
    * with an empty body even at HTTP 200, in which case this yields an empty
@@ -2761,7 +2760,7 @@ export class Client {
    * Opens a streaming session for the given topics.
    *
    * @example
-   * import { Topic } from 'twitter-free-api';
+   * import { Topic } from 'free-twitter-api';
    *
    * const topics = new Set([
    *   Topic.tweetEngagement('1739617652'),

@@ -1,9 +1,8 @@
 /**
- * twitter-free-api — a TypeScript port of the Python library `twikit`.
+ * free-twitter-api — a Twitter/X client for TypeScript that needs no API key.
  *
  * A Twitter/X API wrapper that needs no API key.
  *
- * @see https://github.com/d60/twikit — the original Python library.
  */
 
 export const VERSION = '0.1.0';

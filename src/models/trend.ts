@@ -1,4 +1,3 @@
-/** Ported from twikit/trend.py */
 
 import type { Client } from '../client/client.js';
 

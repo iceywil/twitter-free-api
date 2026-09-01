@@ -1,15 +1,8 @@
-# twitter-free-api
+# Free-Twitter-API
 
-**A no-API-key Twitter/X client for TypeScript.** It authenticates the way the
-web app does and speaks the same internal GraphQL and v1.1 endpoints — so you
-get search, timelines, tweets, DMs, media, trends, streaming and full account
-management from plain Node, with no developer account and no browser at runtime.
-
-A ground-up TypeScript port of the Python library
-[**twikit**](https://github.com/d60/twikit), brought back to life against
-today's x.com: the endpoints, anti-bot checks and data shapes it depends on have
-all shifted since the original was written, and this port re-derives every one of
-them. Strict TypeScript, shipped as ESM + CJS with complete type declarations.
+Free Twitter API for Twitter in Typescript. It authenticates the way the web app
+does and speaks the same internal GraphQL and v1.1 endpoints — no developer
+account, no API key, no browser at runtime.
 
 > **Legal / ToS note.** This uses private endpoints, against X's Terms of
 > Service. Automating an account risks suspension. Use a throwaway account, keep
@@ -17,35 +10,25 @@ them. Strict TypeScript, shipped as ESM + CJS with complete type declarations.
 
 ## Highlights
 
-- **No API key, no browser at runtime.** Everything below runs from Node over plain HTTP.
-- **Native login.** Drives x.com's current `jfapi` login flow and mints the
-  `$castle_token` (Castle.io device signals) by running the real SDK in a
-  locked-down `node:vm` sandbox — the token is accepted server-side. Falls back
-  to exported cookies or a one-time Playwright login if you prefer.
-- **Self-healing `x-client-transaction-id`.** Resolves the `ondemand.s` bundle
-  through x.com's live webpack manifests and generates the header natively — the
-  piece that stops the upstream library from working at all today.
-- **Read + search + trends.** Search (tweets/users/lists), home & user
-  timelines, tweet detail with replies, trends via the Explore endpoints, and a
-  no-login guest client.
-- **Write.** Post/delete tweets, polls, chunked media upload, likes, retweets,
-  bookmarks, follows, DMs, lists, communities.
-- **Full profile management.** Edit name, bio, location and URL; set avatar and
-  banner; change your @handle.
-- **Cursor-based pagination** on every listing, and dual-schema models that read
-  both x.com's legacy `legacy` blob and its newer per-concern payloads.
+- No API key, no browser at runtime — plain HTTP from Node
+- Native login, including 2FA/TOTP, Castle device tokens and Arkose unlock
+- Self-healing `x-client-transaction-id`
+- Search, home and user timelines, tweet detail with replies, trends
+- Guest client for read-only use with no account
+- Post, delete, poll, chunked media upload, like, retweet, bookmark, follow, DM
+- Full profile management — name, bio, location, URL, avatar, banner, @handle
+- Cursor-based pagination on every listing
+- Strict TypeScript, ESM + CJS, complete type declarations
 
 ## Install
 
-It lives in a private repo; install it straight from GitHub (pinned to a tag):
-
 ```bash
-npm install git+ssh://git@github.com/iceywil/twitter-free-api.git#v0.1.0
+npm install git+https://github.com/iceywil/Free-Twitter-API.git#v0.1.0
 ```
 
-The package builds itself on install (`prepare`). Node 20+.
+Node 20+. The package builds itself on install (`prepare`).
 
-From source (this checkout):
+From source:
 
 ```bash
 npm install && npm run build && npm test
@@ -54,7 +37,7 @@ npm install && npm run build && npm test
 ## Quick start
 
 ```ts
-import { Client } from 'twitter-free-api';
+import { Client } from 'free-twitter-api';
 
 const client = new Client({ language: 'en-US' });
 
@@ -81,7 +64,7 @@ const nextPage = await tweets.next();
 The guest client reads public data using a guest token:
 
 ```ts
-import { GuestClient } from 'twitter-free-api';
+import { GuestClient } from 'free-twitter-api';
 
 const client = new GuestClient();
 await client.activate();
@@ -106,7 +89,7 @@ await client.createTweet('Pick one', { pollUri });
 ### Real-time streaming
 
 ```ts
-import { Topic } from 'twitter-free-api';
+import { Topic } from 'free-twitter-api';
 
 const session = await client.getStreamingSession(
   new Set([Topic.tweetEngagement('1519480761749016577')])
@@ -129,65 +112,6 @@ const page2 = await followers.next();
 const back = await page2.previous();
 ```
 
-## Differences from the Python library
-
-The API is the same shape; the naming follows TypeScript conventions.
-
-| Python | twitter-free-api |
-| --- | --- |
-| `snake_case` methods and attributes | `camelCase` (`get_user_by_id` → `getUserById`, `tweet.favorite_count` → `tweet.favoriteCount`) |
-| keyword arguments | a trailing options object (`client.login({ authInfo1, password })`) |
-| `List` model | `TwitterList` (also exported as `List`) — avoids colliding with `Array` conventions |
-| `Result` (custom sequence) | `Result<T> extends Array<T>` |
-| `__eq__` | `.equals(other)` |
-| `__repr__` | `.toString()` |
-| `await tweet.update()` mutates in place | returns a **new** instance (`const fresh = await tweet.update()`) |
-| `input()` prompts for 2FA / email codes | reads stdin by default; override with the `prompt` option |
-| exceptions from `errors.py` | same names, all extending `TwitterException` |
-
-Dependency substitutions: `httpx` → `axios` + `tough-cookie` (redirects and status-code handling deliberately match httpx), `beautifulsoup4`/`lxml` → `cheerio`, `pyotp` → `otpauth`, `Js2Py` → Node's built-in `node:vm`, and `filetype`, `m3u8` and `webvtt-py` → small purpose-built parsers with no extra dependencies.
-
-### Deliberate fixes
-
-Places where following upstream exactly would break at runtime. Each was found by running both libraries side by side against the live API.
-
-- **Locating `ondemand.s`.** Upstream cannot find it any more and so throws on *every* request; this port resolves it through webpack's chunk manifests. See **The `x-client-transaction-id` header**.
-- **Unavailable quoted/retweeted tweets.** x.com returns `quoted_status_result: {}` for a deleted quote. Upstream indexes straight into it and raises; here `tweet.quote` is simply `null`. Reproducible on real timelines (@jack's, for one).
-- **The two user schemas.** x.com is migrating the user payload from a single `legacy` blob to per-concern objects (`core`, `avatar`, `profile_bio`, `relationship_counts`, `tweet_counts`, ...). Both are live at once: `UserByScreenName` still returns `legacy`, while `Viewer` returns only the new shape. Every `User` field reads `legacy` first and falls back to its new-schema location. Upstream, which assumes `legacy`, throws `KeyError: 'urls'` on the home timeline and on user tweets.
-- **Empty request bodies.** httpx sends `data={}` as an empty form body with `content-type: application/x-www-form-urlencoded`; x.com answers 404. The port sends no body and leaves the content type alone. This is the difference between a working and a non-working guest client.
-- **`userId()` / `user()`.** Upstream reads these from `1.1/account/settings.json`. Every v1.1 account route (`settings.json`, `verify_credentials.json`) now returns 404, so both resolve through the GraphQL `Viewer` operation, keeping the upstream path as a fallback. `user()` is built straight from the `Viewer` payload, which also sidesteps `UserByRestId` — an endpoint some networks see WAF-blocked while the rest of the GraphQL surface stays reachable.
-- **`getTrends()` sources and retries.** Upstream recurses without a bound while x.com returns an empty guide response; the port caps that at `Client.MAX_TREND_ATTEMPTS` (10) and then falls back to the GraphQL Explore endpoints the web client uses, since `guide.json` no longer returns trends at all. `Trend` accepts both payload shapes — camelCase from `guide.json`, snake_case `TimelineTrend` from Explore.
-
-## The `x-client-transaction-id` header
-
-x.com requires this header on many routes — the login flow, search, and the v1.1
-account endpoints among them. Without it those return an empty `404`; with it
-they return normal responses. This port generates it natively, no browser
-involved.
-
-The algorithm is twikit's, and it was never wrong. The one part that had broken
-was *locating* `ondemand.s`, the bundle holding the key-byte index table.
-Upstream scans the page for an inline `'ondemand.s':'<hash>'` literal, which
-x.com no longer emits — so upstream throws `Couldn't get KEY_BYTE indices` on
-every single request. The mapping now lives in webpack's two chunk manifests:
-chunk id to chunk name (inside the `r.u` filename builder) and chunk id to
-contenthash. `resolveOndemandFileUrl()` reads both, still trying the legacy
-literal first.
-
-One further wrinkle: the bare landing page serves a trimmed shell with no
-manifests at all. `ClientTransaction.init()` therefore walks `SHELL_PAGES`
-(`/home`, `/login`, `/i/flow/login`) until it finds a page it can resolve the
-table from — `/login` works unauthenticated, `/home` once cookies are set.
-
-Verified against the live API: `account/settings.json` and `SearchTimeline` both
-return 200 from plain Node, and `searchTweet()` returns results with working
-pagination.
-
-If generation ever fails again, the client emits one warning and continues
-without the header rather than failing every request. Pass
-`requireTransactionId: true` to treat it as fatal, or `silent: true` to mute the
-warning.
-
 ## Login
 
 `client.login()` runs x.com's current native flow — no browser:
@@ -202,48 +126,27 @@ await client.login({
 });
 ```
 
-x.com retired `1.1/onboarding/task.json` (what upstream drives). The live flow
-is `/i/jfapi/onboarding/web/actions/begin_login` then `login_enter_password`,
-and each POST carries a `$castle_token` from the Castle.io device-signals SDK.
-That SDK is configured with a *publishable* key (`pk_…`, read live from the
-login page), so nothing secret signs the token — it is produced entirely by
-public client JS. The library fetches that SDK (`ondemand.castle`, resolved
-through the same webpack manifests as `ondemand.s`) and runs it under `node:vm`
-in a locked-down sandbox to mint a genuine token. A token minted this way was
-verified accepted by `begin_login`: the request passed Castle's device check and
-advanced to username validation.
-
-**Security note.** This executes x.com's own SDK in a `node:vm` context whose
-global has no `require`, `process`, `fs`, or real network — only a
-self-resolving XHR stub. The SDK exposes just `configure` and
-`createRequestToken`. If you would rather not run remote JS, use exported
-cookies instead:
+Login drives x.com's current native flow and mints the Castle device token by
+running the real SDK in a locked-down `node:vm` sandbox — no `require`, no
+`process`, no `fs`, no real network. If you would rather not run remote JS, load
+exported cookies instead:
 
 ```ts
 const client = new Client();
 await client.loadCookies('cookies.json');   // { "auth_token": "...", "ct0": "..." }
 ```
 
-A Playwright-based `browserLogin()` (optional `twitter-free-api/browser` entry point)
+A Playwright-based `browserLogin()` (optional `free-twitter-api/browser` entry point)
 is also available if you prefer a real browser for the one-time cookie grab.
 
 ## Known limitations
 
-- **Login rate-limiting is per-IP.** `begin_login` throttles by IP across
-  attempts (`"We've temporarily limited your login. Please try again later."`),
-  independent of the account, so avoid rapid repeated login calls. Once
-  throttled the limit clears on its own after a while.
-
-- **`getTrends()` ignores `category` when it falls back.** v1.1 `guide.json`,
-  which upstream uses, now answers with a cursor-only payload — verified
-  identically from this port and from the Python library (0 of 15 attempts
-  returned trends on the same account and cookies), so it is an endpoint
-  change, not a client bug. The web client reads trends from the GraphQL
-  `ExplorePage` / `ExploreSidebar` endpoints instead, and `getTrends()` falls
-  back to those. Those endpoints take no category argument, so `trending`,
-  `news`, `sports` and `entertainment` all return the same list once the
-  fallback is in use. The `guide.json` path is still tried first, so category
-  filtering returns if x.com starts serving it again.
+- **Login rate-limiting is per-IP**, not per-account, so avoid rapid repeated
+  login calls. It clears on its own.
+- **`getTrends()` ignores `category` when it falls back.** v1.1 `guide.json` now
+  answers with a cursor-only payload, so trends come from the GraphQL Explore
+  endpoints, which take no category — `trending`, `news`, `sports` and
+  `entertainment` return the same list. `guide.json` is still tried first.
 
 ## Configuration
 
@@ -263,7 +166,7 @@ new Client({
 Locked accounts can be unlocked automatically with [Capsolver](https://capsolver.com):
 
 ```ts
-import { Capsolver, Client } from 'twitter-free-api';
+import { Capsolver, Client } from 'free-twitter-api';
 
 const client = new Client({
   captchaSolver: new Capsolver({ apiKey: process.env.CAPSOLVER_API_KEY!, maxAttempts: 10 }),
@@ -292,21 +195,23 @@ const client = new Client({
 Runnable scripts in [`examples/`](./examples): `basic.ts`, `guest.ts`, `postTweet.ts`, `streaming.ts`.
 
 ```bash
-cp .env.example .env   # fill in credentials
 npx tsx examples/basic.ts
 ```
+
+They read `TWITTER_AUTH_INFO_1`, `TWITTER_PASSWORD` and optionally
+`TWITTER_TOTP_SECRET` from the environment.
 
 ## Testing
 
 ```bash
-npm test                    # 75 unit tests, no network
+npm test                    # unit tests, no network
 npx tsx scripts/smoke.ts    # live check; runs the guest half with no credentials
 ```
 
-The unit tests cover the parts of a port most likely to drift: the transaction-id maths (cubic bezier, hex conversion, Python's round-half-to-even), the search-query builder, `Result` pagination, model field mapping, and the hand-written m3u8 / WebVTT / media-type / ui_metrics parsers. Expected values in the transaction tests were captured from the Python original.
-
-`scripts/smoke.ts` runs against the real API. Without credentials it exercises the guest client only; with credentials in `.env` it also checks login, search, timelines, trends and pagination.
+Unit tests cover the parts most likely to drift: transaction-id maths, the
+search-query builder, `Result` pagination, model field mapping, and the
+hand-written m3u8 / WebVTT / media-type / ui_metrics parsers.
 
 ## License
 
-MIT — same as the original. Copyright is preserved for [d60](https://github.com/d60) (the Python library) in [LICENSE](./LICENSE). The transaction-id module derives from [TweeterPy](https://github.com/iSarabjitDhiman/TweeterPy) via upstream, and keeps its attribution.
+MIT — see [LICENSE](./LICENSE).

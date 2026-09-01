@@ -1,5 +1,4 @@
 /**
- * Ported from twikit/x_client_transaction/cubic_curve.py
  *
  * That module in turn derives from https://github.com/iSarabjitDhiman/TweeterPy —
  * with thanks to the original author.

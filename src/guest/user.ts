@@ -1,4 +1,3 @@
-/** Ported from twikit/guest/user.py */
 
 import { timestampToDate, type Result } from '../utils.js';
 import type { GuestClient } from './client.js';

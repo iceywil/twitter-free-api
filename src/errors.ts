@@ -1,4 +1,3 @@
-/** Ported from twikit/errors.py */
 
 export type Headers = Record<string, string | string[] | undefined>;
 

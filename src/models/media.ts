@@ -1,4 +1,3 @@
-/** Ported from twikit/media.py */
 
 import { writeFile } from 'node:fs/promises';
 import type { Client } from '../client/client.js';

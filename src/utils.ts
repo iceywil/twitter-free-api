@@ -1,4 +1,3 @@
-/** Ported from twikit/utils.py */
 
 import type { Client } from './client/client.js';
 

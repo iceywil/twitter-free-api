@@ -1,4 +1,3 @@
-/** Ported from twikit/guest/tweet.py */
 
 import { mediaFromData, type MediaType } from '../models/media.js';
 import { findDict } from '../utils.js';
